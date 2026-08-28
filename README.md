@@ -33,9 +33,10 @@ Output is an SVG on stdout. Options:
 - EPC069-12 version 002 payload, UTF-8, LF separators, ≤331 bytes,
   error correction level M — validated before encoding.
 - QR encoder core in `internal/qr`, derived from
-  [piglig/go-qr](https://github.com/piglig/go-qr) (a Go port of
-  [Nayuki's QR Code generator](https://www.nayuki.io/page/qr-code-generator-library),
-  MIT), reduced to byte mode, level M, versions 1–13. See `NOTICE`.
+  [piglig/go-qr](https://github.com/piglig/go-qr) (MIT), reduced to byte
+  mode, level M, versions 1–13 — proven byte-identical to upstream for
+  every payload length and round-trip verified with an independent
+  decoder. See `NOTICE`.
 
 ## License
 
