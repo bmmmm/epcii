@@ -29,9 +29,15 @@ func NormalizeAmount(in string) (string, error) {
 	case lastComma == -1 && lastDot == -1:
 		intPart = s
 	case lastComma > lastDot: // German: 1.234,56 or 580,5
+		if err := checkThousandsGroups(s[:lastComma], "."); err != nil {
+			return "", fmt.Errorf("amount %q: %w", in, err)
+		}
 		intPart = strings.ReplaceAll(s[:lastComma], ".", "")
 		fracPart = s[lastComma+1:]
 	default: // English: 1,234.56 or 580.5
+		if err := checkThousandsGroups(s[:lastDot], ","); err != nil {
+			return "", fmt.Errorf("amount %q: %w", in, err)
+		}
 		intPart = strings.ReplaceAll(s[:lastDot], ",", "")
 		fracPart = s[lastDot+1:]
 	}
@@ -64,4 +70,24 @@ func NormalizeAmount(in string) (string, error) {
 		return "", fmt.Errorf("amount must be at least 0.01")
 	}
 	return intPart + "." + fracPart, nil
+}
+
+// checkThousandsGroups validates that any thousands separators in the integer
+// part delimit proper digit groups (first group 1-3 digits, then exactly 3),
+// rejecting garbage like "1.,2" or "12.34,56".
+func checkThousandsGroups(intRaw, sep string) error {
+	if !strings.Contains(intRaw, sep) {
+		return nil
+	}
+	groups := strings.Split(intRaw, sep)
+	for i, g := range groups {
+		if i == 0 {
+			if len(g) < 1 || len(g) > 3 {
+				return fmt.Errorf("malformed thousands grouping")
+			}
+		} else if len(g) != 3 {
+			return fmt.Errorf("malformed thousands grouping")
+		}
+	}
+	return nil
 }

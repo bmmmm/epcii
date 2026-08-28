@@ -32,8 +32,11 @@ func SVG(modules [][]bool) []byte {
 		}
 	}
 
+	// Intrinsic size of 4 px per module keeps a bare <img>/viewer rendering
+	// sharp; embedders override it via CSS or width/height attributes.
+	px := total * 4
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" shape-rendering="crispEdges">`+"\n", total, total)
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" shape-rendering="crispEdges">`+"\n", px, px, total, total)
 	fmt.Fprintf(&b, `<rect width="%d" height="%d" fill="#fff"/>`+"\n", total, total)
 	fmt.Fprintf(&b, `<path d="%s" fill="#000"/>`+"\n", path.String())
 	b.WriteString("</svg>\n")

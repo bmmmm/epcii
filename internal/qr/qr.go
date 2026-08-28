@@ -30,7 +30,6 @@ var (
 type Code struct {
 	version int
 	size    int
-	mask    int
 	modules [][]bool
 }
 
@@ -45,7 +44,8 @@ func (c *Code) Module(x, y int) bool {
 // Version returns the QR version (1-13) of the symbol.
 func (c *Code) Version() int { return c.version }
 
-// Matrix returns the module rows; the caller must not modify them.
+// Matrix returns the module rows. The rows alias one shared backing array:
+// callers must not modify or append to them.
 func (c *Code) Matrix() [][]bool { return c.modules }
 
 // EncodeM encodes data as a byte-mode QR symbol at error correction level M,
@@ -59,8 +59,9 @@ func EncodeM(data []byte) (*Code, error) {
 		}
 	}
 	if version == 0 {
+		maxBytes := (dataCapacityBits(MaxVersion) - 4 - charCountBits(MaxVersion)) / 8
 		return nil, fmt.Errorf("qr: %d bytes exceed the version %d-M capacity of %d bytes",
-			len(data), MaxVersion, dataCapacityBits(MaxVersion)/8-2)
+			len(data), MaxVersion, maxBytes)
 	}
 
 	// Assemble the data bit stream: mode indicator, character count, payload,
@@ -85,7 +86,7 @@ func EncodeM(data []byte) (*Code, error) {
 	b.applyMask(mask)
 	b.drawFormatBits(mask)
 
-	return &Code{version: version, size: b.size, mask: mask, modules: b.modules}, nil
+	return &Code{version: version, size: b.size, modules: b.modules}, nil
 }
 
 // charCountBits returns the byte-mode character count field width for a

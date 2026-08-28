@@ -19,14 +19,16 @@ Output is an SVG on stdout. Options:
 | Flag | Description |
 |---|---|
 | `--name` | Beneficiary name (required, ≤70 chars) |
-| `--iban` | Beneficiary IBAN (required, mod-97 checked) |
+| `--iban` | Beneficiary IBAN (required; mod-97 and SEPA length checked) |
 | `--amount` | Amount in EUR, `0.01`–`999999999.99`; German comma form (`580,00`) accepted |
 | `--text` | Unstructured remittance text (≤140 chars) |
-| `--ref` | Structured creditor reference (ISO 11649), mutually exclusive with `--text` |
+| `--ref` | Structured creditor reference (≤35 chars; `RF…` refs are ISO 11649 checked), mutually exclusive with `--text` |
 | `--bic` | BIC (optional within the EEA) |
-| `--purpose` | 4-letter SEPA purpose code |
+| `--purpose` | SEPA purpose code (≤4 chars, alphanumeric) |
+| `--info` | Beneficiary-to-originator information (≤70 chars) |
 | `--png <file>` | Additionally write a PNG |
-| `--term` | Print a terminal preview |
+| `--term` | Print a terminal preview to stderr |
+| `--version` | Print the version and exit |
 
 ## Design
 

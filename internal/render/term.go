@@ -7,7 +7,8 @@ import (
 // Terminal renders the module matrix as a terminal preview using Unicode
 // half blocks (two module rows per text line). Colors are set explicitly via
 // ANSI codes so the polarity is correct on both light and dark terminals.
-// A quiet zone of two modules keeps the preview compact but scannable.
+// The two-module quiet zone keeps the preview compact; it is a preview, not
+// a print artifact — the SVG/PNG outputs carry the full four-module zone.
 func Terminal(modules [][]bool) string {
 	const quiet = 2
 	n := len(modules)

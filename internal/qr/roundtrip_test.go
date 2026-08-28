@@ -93,6 +93,27 @@ func TestRoundTrip331BytesIsVersion13(t *testing.T) {
 	}
 }
 
+// TestRoundTripAllVersions exercises every version 1-13 at its exact byte
+// capacity, guarding the per-version ECC tables: a wrong table entry makes
+// the symbol undecodable or shifts version selection.
+func TestRoundTripAllVersions(t *testing.T) {
+	for v := MinVersion; v <= MaxVersion; v++ {
+		maxBytes := (dataCapacityBits(v) - 4 - charCountBits(v)) / 8
+		payload := strings.Repeat("a", maxBytes)
+		c, err := EncodeM([]byte(payload))
+		if err != nil {
+			t.Fatalf("version %d (%d bytes): %v", v, maxBytes, err)
+		}
+		if c.Version() != v {
+			t.Errorf("payload of %d bytes selected version %d, want %d", maxBytes, c.Version(), v)
+			continue
+		}
+		if got := decode(t, codeImage(t, c)); got != payload {
+			t.Errorf("version %d: round-trip mismatch", v)
+		}
+	}
+}
+
 func TestVersionSelection(t *testing.T) {
 	// Data codeword counts per version at level M, from ISO/IEC 18004.
 	wantDataCodewords := map[int]int{1: 16, 2: 28, 3: 44, 13: 334}

@@ -33,6 +33,8 @@ func TestValidateIBAN(t *testing.T) {
 		"D102120300000000202051":      "country code not letters",
 		"DEAB120300000000202051":      "check digits not numeric",
 		"DE02-1203-0000-0000-2020-51": "invalid characters",
+		"DE311203000000002020":        "valid mod-97 but wrong length for DE (20 != 22)",
+		"AT611904300234573201123":     "valid-looking but wrong length for AT (23 != 20)",
 	}
 	for in, why := range invalid {
 		if _, err := ValidateIBAN(in); err == nil {
@@ -66,7 +68,8 @@ func TestNormalizeAmount(t *testing.T) {
 		}
 	}
 
-	bad := []string{"", "0.00", "0", "12.345", "abc", "12a", "1000000000.00", "1e3", "-5"}
+	bad := []string{"", "0.00", "0", "12.345", "abc", "12a", "1000000000.00", "1e3", "-5",
+		"1.,2", "1,.2", "12.34,56", "1.2345,00", "1,,2"}
 	for _, in := range bad {
 		if got, err := NormalizeAmount(in); err == nil {
 			t.Errorf("NormalizeAmount(%q) = %q, should fail", in, got)
@@ -154,6 +157,52 @@ func TestPayloadErrors(t *testing.T) {
 		if _, err := p.Payload(); err == nil {
 			t.Errorf("%s: expected error, got none", name)
 		}
+	}
+}
+
+func TestPayloadValidationDetails(t *testing.T) {
+	base := Payment{Name: "X", IBAN: "DE02120300000000202051"}
+
+	bad := map[string]Payment{
+		"purpose not alphanumeric": {Name: "X", IBAN: base.IBAN, Purpose: "a$b"},
+		"purpose multibyte":        {Name: "X", IBAN: base.IBAN, Purpose: "ÄÖÜ"},
+		"name not UTF-8":           {Name: "M\xfcller GmbH", IBAN: base.IBAN},
+		"text not UTF-8":           {Name: "X", IBAN: base.IBAN, Text: "\xff\xfe"},
+		"RF ref bad check digits":  {Name: "X", IBAN: base.IBAN, Ref: "RF19539007547034"},
+		"RF ref bad characters":    {Name: "X", IBAN: base.IBAN, Ref: "RF18-53900754"},
+	}
+	for name, p := range bad {
+		if _, err := p.Payload(); err == nil {
+			t.Errorf("%s: expected error, got none", name)
+		}
+	}
+
+	good := map[string]Payment{
+		"valid RF ref":  {Name: "X", IBAN: base.IBAN, Ref: "RF18539007547034"},
+		"non-RF ref":    {Name: "X", IBAN: base.IBAN, Ref: "INV-2026-001"},
+		"purpose alnum": {Name: "X", IBAN: base.IBAN, Purpose: "gdds"},
+	}
+	for name, p := range good {
+		if _, err := p.Payload(); err != nil {
+			t.Errorf("%s: unexpected error: %v", name, err)
+		}
+	}
+
+	// Normalization: name is trimmed, BIC and purpose are uppercased.
+	p := Payment{Name: "  ACME GmbH  ", IBAN: base.IBAN, BIC: "bnpafrpp", Purpose: "gdds"}
+	payload, err := p.Payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(payload, "\n")
+	if lines[4] != "BNPAFRPP" {
+		t.Errorf("BIC not uppercased: %q", lines[4])
+	}
+	if lines[5] != "ACME GmbH" {
+		t.Errorf("name not trimmed: %q", lines[5])
+	}
+	if lines[8] != "GDDS" {
+		t.Errorf("purpose not uppercased: %q", lines[8])
 	}
 }
 
