@@ -1,0 +1,64 @@
+name: Input wrongly rejected or wrongly accepted
+description: Valid input fails validation, or invalid input slips through
+title: "[validation] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        epcii validates IBANs (mod-97 + SEPA country lengths), amounts,
+        field lengths, and charset before encoding. Reports here split into
+        "the validator is too strict/too lax" versus "the input is actually
+        invalid" — the dropdown below routes that.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command
+      description: >-
+        Replace private IBANs/names with equivalent test data that still
+        reproduces the problem (same length/format).
+      render: sh
+    validations:
+      required: true
+
+  - type: textarea
+    id: message
+    attributes:
+      label: Exact error message (or the --details output if it was accepted)
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Which direction is the bug?
+      options:
+        - "valid input was rejected"
+        - "invalid input was accepted"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: bank-accepts
+    attributes:
+      label: Does your bank accept this value when entered manually?
+      description: >-
+        For a rejected IBAN/amount: type the same value into your banking
+        app's manual transfer form. If the bank rejects it too, the value is
+        likely invalid; if the bank accepts it, our validator is too strict.
+      options:
+        - "I have not checked"
+        - "yes, the bank accepts it manually"
+        - "no, the bank rejects it too"
+        - "not applicable"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: epcii --version
+    validations:
+      required: true

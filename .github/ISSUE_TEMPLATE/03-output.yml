@@ -1,0 +1,56 @@
+name: Broken or wrong output
+description: SVG, PNG, or terminal preview renders incorrectly, or CLI misbehaves
+title: "[output] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For rendering problems: if `--details` shows correct fields AND the
+        PNG scans, the encoder is fine and the bug is isolated to one
+        renderer (SVG, terminal preview) or to CLI behaviour — say which.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command
+      render: sh
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which output is broken?
+      options:
+        - "SVG (stdout)"
+        - "PNG (--png)"
+        - "terminal preview (--term)"
+        - "CLI behaviour (flags, exit code, error message)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected vs. what happened
+      description: >-
+        For visuals, attach a screenshot or the output file. For CLI
+        behaviour, paste the output and `echo $?`.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Viewer / terminal / printer involved
+      placeholder: e.g. Firefox 143, Ghostty, CUPS + Brother HL-L2350
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: epcii --version
+    validations:
+      required: true

@@ -1,0 +1,82 @@
+name: Code doesn't scan / bank app rejects it
+description: A generated QR code is not recognized or refused by a banking app
+title: "[scan] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The one thing that settles most scan reports: run your exact command
+        again with `--details` added. It prints the fields that were actually
+        encoded — wrong fields mean a payload bug, correct fields mean a
+        rendering/print/app problem. Two different fixes.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command
+      description: >-
+        The full epcii invocation. Replace real names/IBANs with test data
+        (e.g. DE02120300000000202051) — this is a public issue.
+      render: sh
+      placeholder: epcii --name "ACME GmbH" --iban DE02120300000000202051 --amount 12,34 --text "Invoice 42" > qr.svg
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Output of the same command with --details
+      description: Paste the full "encoded GiroCode payload" block from stderr.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: fields-correct
+    attributes:
+      label: Do the encoded fields in --details look correct to you?
+      options:
+        - "I have not checked yet"
+        - "yes, the fields are correct — but the code still won't scan"
+        - "no, a field is wrong or missing (say which below)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: png-scans
+    attributes:
+      label: Does the PNG scan?
+      description: >-
+        Generate one with `--png test.png`, display it at full size, and try
+        the same app. If the PNG scans but your embedded/printed SVG does
+        not, the problem is size/embedding, not the symbol.
+      options:
+        - "I have not tried the PNG"
+        - "yes, the PNG scans — only my SVG/print fails"
+        - "no, the PNG does not scan either"
+    validations:
+      required: true
+
+  - type: input
+    id: app
+    attributes:
+      label: Banking app and its exact error message
+      placeholder: e.g. Sparkasse app 6.2 — "Dieser Code enthält keine Zahlungsinformationen"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: epcii --version
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: How the code was displayed
+      description: >-
+        Screen or print? Approximate physical/pixel size, and how the SVG is
+        embedded if applicable.

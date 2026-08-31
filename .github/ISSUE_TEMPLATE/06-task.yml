@@ -1,0 +1,46 @@
+name: Task (agent-ready)
+description: Fully specified work item that a maintainer or coding agent can pick up as-is
+title: "[task] "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A task is done being written when someone could implement it without
+        asking a single follow-up question. If you can't fill a field yet,
+        the task isn't ready — file a feature request or question instead.
+
+  - type: textarea
+    id: contract
+    attributes:
+      label: Exact before/after contract
+      description: >-
+        Current behaviour and target behaviour, precise enough to write the
+        test first. Name commands, flags, and files in backticks.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: One checkable statement per line, including a negative case.
+    validations:
+      required: true
+
+  - type: textarea
+    id: blast-radius
+    attributes:
+      label: Blast radius
+      description: >-
+        Which packages/files this may touch, and which public contracts
+        (stdout purity, exit codes, flag semantics, payload format) it must
+        NOT change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: pointers
+    attributes:
+      label: Pointers
+      description: Relevant files, tests, or prior issues/PRs, if known.
