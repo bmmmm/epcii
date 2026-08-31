@@ -3,6 +3,7 @@ package epc
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // sepaIBANLength maps SEPA-participant country codes to their official IBAN
@@ -17,12 +18,19 @@ var sepaIBANLength = map[string]int{
 	"RO": 24, "RS": 22, "SE": 24, "SI": 19, "SK": 24, "SM": 27, "VA": 22,
 }
 
-// ValidateIBAN normalizes an IBAN (strips spaces, uppercases) and verifies
-// its structure, its country-specific length for SEPA countries, and the
-// ISO 13616 mod-97 check digits. It returns the normalized form suitable
-// for the payload.
+// ValidateIBAN normalizes an IBAN (strips all whitespace, uppercases) and
+// verifies its structure, its country-specific length for SEPA countries,
+// and the ISO 13616 mod-97 check digits. It returns the normalized form
+// suitable for the payload. Every Unicode whitespace rune is dropped, since
+// IBANs copied from PDFs and banking portals carry no-break and narrow
+// spaces between the digit groups.
 func ValidateIBAN(iban string) (string, error) {
-	s := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(iban), " ", ""))
+	s := strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return unicode.ToUpper(r)
+	}, iban)
 	if s == "" {
 		return "", fmt.Errorf("IBAN is required")
 	}

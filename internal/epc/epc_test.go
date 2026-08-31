@@ -12,6 +12,9 @@ func TestValidateIBAN(t *testing.T) {
 		"de89 3704 0044 0532 0130 00", // spaces + lowercase normalize
 		"GB82WEST12345698765432",
 		"FR1420041010050500013M02606",
+		"DE89 3704 0044 0532 0130 00",      // no-break spaces (PDF copy-paste)
+		"DE89 3704 0044 0532 0130 00",      // narrow no-break spaces
+		"\tDE89 3704\t0044 0532 0130 00\n", // tabs and trailing newline
 	}
 	for _, in := range valid {
 		got, err := ValidateIBAN(in)
@@ -58,6 +61,13 @@ func TestNormalizeAmount(t *testing.T) {
 		"0.01":         "0.01",
 		"999999999.99": "999999999.99",
 		"0580.00":      "580.00",
+		"1,37":         "1.37",
+		"1.37":         "1.37",
+		"1 234,56":     "1234.56",
+		"1 234 567.89": "1234567.89",
+		"1 234,56":     "1234.56", // no-break space thousands separator
+		" 1,37 €":      "1.37",    // NBSP-padded copy-paste
+		"1 234,56":     "1234.56", // narrow no-break space (Apple/CH)
 	}
 	for in, want := range good {
 		got, err := NormalizeAmount(in)

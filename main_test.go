@@ -50,9 +50,56 @@ func TestRunMissingName(t *testing.T) {
 }
 
 func TestRunPositionalArgRejected(t *testing.T) {
-	code, _, errOut := runCLI(t, "--name", "X", "--iban", "DE02120300000000202051", "stray")
-	if code != 2 || !strings.Contains(errOut, "stray") {
+	// Classic mistake: --text hallo welt (missing quotes around the value).
+	code, _, errOut := runCLI(t, "--name", "X", "--iban", "DE02120300000000202051",
+		"--text", "hallo", "welt")
+	if code != 2 || !strings.Contains(errOut, "welt") {
 		t.Errorf("exit %d, stderr %q — want 2 and the stray arg named", code, errOut)
+	}
+	if !strings.Contains(errOut, "quotes") {
+		t.Errorf("stderr should hint at missing quotes: %q", errOut)
+	}
+}
+
+func TestRunValueLookingLikeFlag(t *testing.T) {
+	// --text without a value swallows the next flag as its value.
+	code, _, errOut := runCLI(t, "--name", "X", "--iban", "DE02120300000000202051",
+		"--text", "--term")
+	if code != 2 || !strings.Contains(errOut, "--term") {
+		t.Errorf("exit %d, stderr %q — want 2 naming the swallowed flag", code, errOut)
+	}
+
+	// The documented escape hatch keeps literal dashy values possible.
+	code, out, errOut := runCLI(t, "--name", "X", "--iban", "DE02120300000000202051",
+		"--text=--term")
+	if code != 0 {
+		t.Errorf("--text=--term should be accepted, got exit %d, stderr %q", code, errOut)
+	}
+	if !strings.HasPrefix(out, "<svg ") {
+		t.Error("SVG expected on stdout")
+	}
+}
+
+func TestRunDetails(t *testing.T) {
+	code, out, errOut := runCLI(t,
+		"--name", "Erika Mustermann", "--iban", "DE02 1203 0000 0000 2020 51",
+		"--amount", "1,37", "--text", "hallo welt", "--details")
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	if !strings.HasPrefix(out, "<svg ") {
+		t.Error("SVG still expected on stdout")
+	}
+	for _, want := range []string{
+		"name:", "Erika Mustermann",
+		"iban:", "DE02120300000000202051", // normalized, without spaces
+		"amount:", "EUR1.37",
+		"text:", "hallo welt",
+		"QR version",
+	} {
+		if !strings.Contains(errOut, want) {
+			t.Errorf("details output missing %q:\n%s", want, errOut)
+		}
 	}
 }
 

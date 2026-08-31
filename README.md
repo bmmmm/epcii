@@ -28,6 +28,7 @@ Output is an SVG on stdout. Options:
 | `--info` | Beneficiary-to-originator information (≤70 chars) |
 | `--png <file>` | Additionally write a PNG |
 | `--term` | Print a terminal preview to stderr |
+| `--details` | Print the encoded payload fields to stderr for verification |
 | `--version` | Print the version and exit |
 
 ## Design
