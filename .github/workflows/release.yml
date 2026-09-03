@@ -17,6 +17,18 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # The tag name becomes part of every asset file name.
+      - name: Check tag name
+        run: |
+          case "$GITHUB_REF_NAME" in
+            */*|*' '*) echo "::error::tag must not contain '/' or spaces: $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+
+      # The full merge gate, repeated here: ci.yml runs on the same tag push
+      # but concurrently, so it cannot hold this job back.
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
       - run: go test ./...
 
       # One job, one loop — a matrix would scatter the binaries across jobs and

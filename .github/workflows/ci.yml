@@ -23,3 +23,8 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go build .
+      # The upstream fixture must stay reproducible from the pinned
+      # piglig/go-qr, so the generator (its own module, outside ./...) is
+      # built and its output compared byte for byte on every run.
+      - name: Upstream fixture provenance
+        run: go run -C scripts/qrfixtures . | diff - internal/qr/testdata/matrix_fingerprints.txt

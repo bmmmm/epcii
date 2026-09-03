@@ -156,33 +156,45 @@ func looksLikeFlag(value string) bool {
 // exercise the failure path without a filesystem trick.
 var encodePNG = render.PNG
 
-// writePNG writes the PNG atomically: encode into a temp file in the target
-// directory, then rename it over the target. os.Create would truncate an
-// existing file up front, so a failed or partial encode would destroy it.
+// writePNG writes the PNG atomically: encode into a scratch file next to the
+// target, then rename it into place. os.Create would truncate an existing
+// file up front, so a failed or partial encode would destroy it. Like
+// os.Create, it writes through a symlink and creates new files as 0666 minus
+// the umask; a file it replaces keeps its permissions. The target directory
+// must be writable.
 func writePNG(path string, matrix [][]bool) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".epcii-*.png")
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	var keepMode os.FileMode
+	existed := false
+	if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+		keepMode, existed = info.Mode().Perm(), true
+	}
+
+	name := filepath.Join(filepath.Dir(path), fmt.Sprintf(".%s.%d.tmp", filepath.Base(path), os.Getpid()))
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
 	if err != nil {
 		return err
 	}
-	name := tmp.Name()
-	if err := encodePNG(tmp, matrix, pngScale); err != nil {
-		tmp.Close()
+	fail := func(err error) error {
 		os.Remove(name)
 		return err
 	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(name)
-		return err
+	if err := encodePNG(f, matrix, pngScale); err != nil {
+		f.Close()
+		return fail(err)
 	}
-	// CreateTemp opens with 0600; a QR image is not a secret and should look
-	// like any other generated file.
-	if err := os.Chmod(name, 0o644); err != nil {
-		os.Remove(name)
-		return err
+	if err := f.Close(); err != nil {
+		return fail(err)
+	}
+	if existed {
+		if err := os.Chmod(name, keepMode); err != nil {
+			return fail(err)
+		}
 	}
 	if err := os.Rename(name, path); err != nil {
-		os.Remove(name)
-		return err
+		return fail(err)
 	}
 	return nil
 }

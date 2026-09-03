@@ -70,10 +70,11 @@ func (p Payment) Payload() (string, error) {
 	if ref != "" && p.Text != "" {
 		return "", fmt.Errorf("structured reference and unstructured text are mutually exclusive")
 	}
-	// An ISO 11649 creditor reference is normalized — banks print it in groups
-	// of four — and then mod-97 verified like an IBAN. Every other structured
-	// reference belongs to an issuer's own scheme, where case and inner
-	// spacing may carry meaning, so it passes through untouched.
+	// An ISO 11649 creditor reference ("RF" + two check digits) is normalized
+	// — banks print it in groups of four — and then mod-97 verified like an
+	// IBAN. Every other structured reference belongs to an issuer's own
+	// scheme, where case and inner spacing may carry meaning, so it passes
+	// through untouched.
 	if norm := strings.ToUpper(strings.ReplaceAll(ref, " ", "")); isISO11649Claim(norm) {
 		ref = norm
 		if err := validateCreditorReference(ref); err != nil {
@@ -138,40 +139,28 @@ func trimTrailingEmpty(fields []string) []string {
 	return fields[:end]
 }
 
-// isISO11649Claim reports whether an already normalized reference presents
-// itself as an ISO 11649 creditor reference. The "RF" marker alone does not
-// settle it — invoice numbers such as "rfid-77" start with those letters too
-// — so one further signal is required: numeric check digits behind the
-// marker, or a body free of the punctuation only issuer schemes carry. A
-// claim is then held to the full standard rather than waved through.
+// isISO11649Claim reports whether a normalized reference presents itself as
+// an ISO 11649 creditor reference: the "RF" marker followed by its two check
+// digits. Issuer schemes that merely start with those letters ("rfid-77",
+// "RFQ2026001") are not claims and pass through untouched; a claim is held
+// to the full standard.
 func isISO11649Claim(ref string) bool {
-	if len(ref) < 2 || ref[0] != 'R' || ref[1] != 'F' {
-		return false
-	}
-	if len(ref) >= 4 && isASCIIDigit(ref[2]) && isASCIIDigit(ref[3]) {
-		return true
-	}
-	return isUpperAlnum(ref)
+	return len(ref) >= 4 && ref[0] == 'R' && ref[1] == 'F' && isASCIIDigit(ref[2]) && isASCIIDigit(ref[3])
 }
 
-// validateCreditorReference checks a normalized ISO 11649 creditor reference:
-// "RF", two numeric check digits and 1..21 further alphanumerics, 25
-// characters at most, verified with the mod-97 scheme used for IBANs.
+// validateCreditorReference checks a normalized ISO 11649 creditor reference
+// ("RF" + two check digits, as isISO11649Claim guarantees): 1..21 further
+// alphanumerics, 25 characters at most, verified with the mod-97 scheme used
+// for IBANs.
 func validateCreditorReference(ref string) error {
-	// Below five characters there is nothing left to reference, and the
-	// check-digit and mod-97 slices below would be out of bounds.
 	if len(ref) < 5 {
 		return fmt.Errorf("creditor reference %q is %d characters, ISO 11649 requires at least 5", ref, len(ref))
 	}
-	// After this the reference is pure ASCII, so byte offsets are characters.
 	if !isUpperAlnum(ref) {
 		return fmt.Errorf("creditor reference %q may only contain A-Z and 0-9", ref)
 	}
 	if len(ref) > 25 {
 		return fmt.Errorf("creditor reference %q is %d characters, ISO 11649 limit is 25", ref, len(ref))
-	}
-	if !isASCIIDigit(ref[2]) || !isASCIIDigit(ref[3]) {
-		return fmt.Errorf("creditor reference %q: check digits (positions 3-4) must be numeric", ref)
 	}
 	if mod97(ref[4:]+ref[:4]) != 1 {
 		return fmt.Errorf("creditor reference %q failed the ISO 11649 mod-97 check", ref)

@@ -290,6 +290,9 @@ func TestPayloadReference(t *testing.T) {
 		"lowercase invoice number keeps its case":  {"inv-2026-abc", "inv-2026-abc"},
 		"inner spaces of a non-RF ref survive":     {"Invoice 2026 001", "Invoice 2026 001"},
 		"invoice number starting with rf survives": {"rfid-77", "rfid-77"},
+		"letters where check digits would be":      {"RFAA14", "RFAA14"},
+		"issuer scheme starting with RF":           {"RFQ2026001", "RFQ2026001"},
+		"bare RF marker is an issuer value":        {"RF", "RF"},
 		"surrounding whitespace is trimmed":        {"  INV-2026-001  ", "INV-2026-001"},
 		"pasted RF ref is upper-cased and joined":  {"rf18 5390 0754 7034", "RF18539007547034"},
 		"RF ref at the 25-character maximum":       {"RF39539007547034539007547", "RF39539007547034539007547"},
@@ -315,9 +318,7 @@ func TestPayloadReference(t *testing.T) {
 	// Each rejected case also pins which rule spoke, so a future rewrite
 	// cannot collapse them into one blanket "invalid reference".
 	rejected := map[string]struct{ in, wantMsg string }{
-		"RF marker with no body":         {"RF", "at least 5"},
-		"RF marker plus one character":   {"RF1", "at least 5"},
-		"check digits are letters":       {"RFAA14", "check digits"},
+		"check digits with no body":      {"RF12", "at least 5"},
 		"26 characters, mod-97 still ok": {"RF635390075470345390075470", "limit is 25"},
 		"29 characters, mod-97 still ok": {"RF255390075470345390075470345", "limit is 25"},
 		"punctuation inside an RF ref":   {"RF18-53900754", "A-Z and 0-9"},

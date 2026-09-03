@@ -129,10 +129,10 @@ func TestRunPNGAndTerm(t *testing.T) {
 	}
 }
 
-// assertNoScratchFiles fails if the atomic PNG write left its temp file behind.
+// assertNoScratchFiles fails if the atomic PNG write left its scratch file behind.
 func assertNoScratchFiles(t *testing.T, dir string) {
 	t.Helper()
-	leftovers, err := filepath.Glob(filepath.Join(dir, ".epcii-*"))
+	leftovers, err := filepath.Glob(filepath.Join(dir, ".*.tmp"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,11 +154,75 @@ func TestRunPNGWriteIsAtomic(t *testing.T) {
 		t.Fatal(err)
 	}
 	if runtime.GOOS != "windows" {
-		// os.CreateTemp opens 0600; without the chmod the result would be
-		// unreadable for everyone but the caller.
-		if perm := info.Mode().Perm(); perm != 0o644 {
-			t.Errorf("mode %04o, want 0644", perm)
+		// A new file must get what os.Create would give under the caller's
+		// umask — neither a private 0600 scratch mode nor a hardcoded 0644.
+		ref, err := os.Create(filepath.Join(dir, "reference"))
+		if err != nil {
+			t.Fatal(err)
 		}
+		ref.Close()
+		refInfo, err := os.Stat(ref.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := info.Mode().Perm(), refInfo.Mode().Perm(); got != want {
+			t.Errorf("mode %04o, want %04o (os.Create under the current umask)", got, want)
+		}
+	}
+	assertNoScratchFiles(t, dir)
+}
+
+func TestRunPNGKeepsExistingMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits")
+	}
+	dir := t.TempDir()
+	pngPath := filepath.Join(dir, "out.png")
+	if err := os.WriteFile(pngPath, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := runCLI(t,
+		"--name", "ACME GmbH", "--iban", "DE02120300000000202051", "--png", pngPath)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	info, err := os.Stat(pngPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("replacing a 0600 file must keep 0600, got %04o", perm)
+	}
+	assertNoScratchFiles(t, dir)
+}
+
+func TestRunPNGWritesThroughSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation needs privileges on Windows")
+	}
+	dir := t.TempDir()
+	target := filepath.Join(dir, "real.png")
+	if err := os.WriteFile(target, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link.png")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := runCLI(t,
+		"--name", "ACME GmbH", "--iban", "DE02120300000000202051", "--png", link)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("the symlink must survive; Lstat: %v, mode %v", err, info.Mode())
+	}
+	data, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(data, []byte("\x89PNG")) {
+		t.Error("the PNG must be written through the symlink into its target")
 	}
 	assertNoScratchFiles(t, dir)
 }
