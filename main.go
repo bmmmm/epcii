@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 
@@ -151,20 +152,47 @@ func looksLikeFlag(value string) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }
 
+// encodePNG is the PNG encoder used by writePNG; a test replaces it to
+// exercise the failure path without a filesystem trick.
+var encodePNG = render.PNG
+
+// writePNG writes the PNG atomically: encode into a temp file in the target
+// directory, then rename it over the target. os.Create would truncate an
+// existing file up front, so a failed or partial encode would destroy it.
 func writePNG(path string, matrix [][]bool) error {
-	f, err := os.Create(path)
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".epcii-*.png")
 	if err != nil {
 		return err
 	}
-	if err := render.PNG(f, matrix, pngScale); err != nil {
-		f.Close()
+	name := tmp.Name()
+	if err := encodePNG(tmp, matrix, pngScale); err != nil {
+		tmp.Close()
+		os.Remove(name)
 		return err
 	}
-	return f.Close()
+	if err := tmp.Close(); err != nil {
+		os.Remove(name)
+		return err
+	}
+	// CreateTemp opens with 0600; a QR image is not a secret and should look
+	// like any other generated file.
+	if err := os.Chmod(name, 0o644); err != nil {
+		os.Remove(name)
+		return err
+	}
+	if err := os.Rename(name, path); err != nil {
+		os.Remove(name)
+		return err
+	}
+	return nil
 }
 
-// versionString reports the release version: the -ldflags override when set,
-// otherwise the module version recorded by `go install module@version`.
+// versionString reports the release version. An -ldflags override wins;
+// otherwise the module version from the build info is used, which is the
+// requested version for `go install module@version` and a VCS-stamped
+// pseudo-version (e.g. v0.1.1-0.20260903003039-c6c6eb0bb191) for a plain
+// `go build` inside a git checkout. Only builds without VCS information —
+// `-buildvcs=false`, or a source archive without .git — report "dev".
 func versionString() string {
 	if version != "dev" {
 		return version

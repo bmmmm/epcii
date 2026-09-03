@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -124,6 +127,72 @@ func TestRunPNGAndTerm(t *testing.T) {
 	if !strings.HasPrefix(out, "<svg ") {
 		t.Error("SVG still expected on stdout")
 	}
+}
+
+// assertNoScratchFiles fails if the atomic PNG write left its temp file behind.
+func assertNoScratchFiles(t *testing.T, dir string) {
+	t.Helper()
+	leftovers, err := filepath.Glob(filepath.Join(dir, ".epcii-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leftovers) > 0 {
+		t.Errorf("scratch files left behind: %v", leftovers)
+	}
+}
+
+func TestRunPNGWriteIsAtomic(t *testing.T) {
+	dir := t.TempDir()
+	pngPath := filepath.Join(dir, "out.png")
+	code, _, errOut := runCLI(t,
+		"--name", "ACME GmbH", "--iban", "DE02120300000000202051", "--png", pngPath)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	info, err := os.Stat(pngPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" {
+		// os.CreateTemp opens 0600; without the chmod the result would be
+		// unreadable for everyone but the caller.
+		if perm := info.Mode().Perm(); perm != 0o644 {
+			t.Errorf("mode %04o, want 0644", perm)
+		}
+	}
+	assertNoScratchFiles(t, dir)
+}
+
+func TestRunPNGFailedWriteKeepsExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	pngPath := filepath.Join(dir, "out.png")
+	existing := []byte("\x89PNG previous rendering — must survive a failed write\n")
+	if err := os.WriteFile(pngPath, existing, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	restore := encodePNG
+	encodePNG = func(io.Writer, [][]bool, int) error {
+		return errors.New("encoder blew up mid-write")
+	}
+	t.Cleanup(func() { encodePNG = restore })
+
+	code, out, errOut := runCLI(t,
+		"--name", "ACME GmbH", "--iban", "DE02120300000000202051", "--png", pngPath)
+	if code != 1 || errOut == "" {
+		t.Errorf("exit %d, stderr %q — want 1 with an error message", code, errOut)
+	}
+	if out != "" {
+		t.Error("stdout must stay empty when the PNG write fails")
+	}
+	got, err := os.ReadFile(pngPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, existing) {
+		t.Errorf("existing file was clobbered: %q", got)
+	}
+	assertNoScratchFiles(t, dir)
 }
 
 func TestRunPNGUnwritablePath(t *testing.T) {

@@ -81,6 +81,14 @@ go test ./...         # unit, golden, and round-trip tests
 go vet ./... && gofmt -l .
 ```
 
+`--version` reports whatever the build info carries: the module version for
+`go install`, a VCS pseudo-version for a plain `go build` in a checkout.
+Release builds stamp it explicitly:
+
+```sh
+go build -trimpath -ldflags "-s -w -X main.version=v1.2.3" -o epcii .
+```
+
 The encoder is cross-checked four ways: round-trip decoding with the
 independent gozxing ZXing port, golden payload fixtures generated from
 segno's reference implementation (regenerate via
