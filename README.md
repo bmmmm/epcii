@@ -16,6 +16,11 @@ Requires Go 1.26 or newer:
 go install github.com/bmmmm/epcii@latest
 ```
 
+Or download a prebuilt binary: every
+[GitHub release](https://github.com/bmmmm/epcii/releases) carries static
+binaries for Linux, macOS, and Windows (amd64 and arm64) plus a
+`SHA256SUMS` file to verify them against.
+
 Or build from a checkout:
 
 ```sh

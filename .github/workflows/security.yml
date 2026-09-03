@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  pull-requests: write  # gitleaks-action posts its findings as a PR comment
+
 jobs:
   security:
     name: Security checks
