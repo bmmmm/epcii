@@ -1,3 +1,5 @@
+// This test is original epcii code, not derived from piglig/go-qr.
+
 package qr
 
 import (

@@ -13,6 +13,7 @@ asks for and why.
 | `internal/qr` | QR encoder core — byte mode, ECC level M, versions 1–13, mask selection. Derived from [piglig/go-qr](https://github.com/piglig/go-qr) (MIT, see `NOTICE`) |
 | `internal/render` | SVG / PNG / ANSI-terminal renderers over the module matrix |
 | `scripts/gen_segno_fixtures.py` | One-shot generator for the segno golden fixtures in `internal/epc/testdata/` |
+| `scripts/qrfixtures/` | Separate Go module: regenerates the upstream matrix fingerprints in `internal/qr/testdata/` from piglig/go-qr |
 
 ## Build and test
 
@@ -41,7 +42,7 @@ forbidden-file check (`security.yml`).
 
 ## Test conventions
 
-The encoder's correctness rests on three independent checks; keep all three
+The encoder's correctness rests on four independent checks; keep all four
 alive when touching the encode path:
 
 1. **Round-trip decode** with the independent
@@ -53,6 +54,14 @@ alive when touching the encode path:
    inputs in `internal/epc/golden_test.go` in sync with the script.
 3. **SVG path reconstruction** — the emitted path is parsed back into a
    module matrix and compared 1:1 (quiet zone hardcoded to 4 per ISO 18004).
+4. **Upstream matrix fingerprints** — `TestMatrixFingerprints` compares
+   the chosen version and the full module matrix for every payload length
+   0–331 against `internal/qr/testdata/matrix_fingerprints.txt`, generated
+   from piglig/go-qr v1.1.0 by `scripts/qrfixtures` (its own Go module, so
+   the upstream package never enters the main `go.mod`). Unlike the
+   round-trip decoder it does not forgive ECC-repairable damage: mask
+   choice, alignment geometry, the dark module and padding order all go
+   red here.
 
 House rule: **a new test must be able to go red.** If you add a gate,
 demonstrate (e.g. via a temporary mutation) that it fails when the guarded
@@ -65,11 +74,15 @@ on purpose (copy-paste realism) — don't "clean them up".
 ### Touching `internal/qr`
 
 The core is derived code, kept deliberately close to upstream piglig/go-qr.
-Refactors there need more than green tests: the original extraction was
-proven by byte-identical matrix comparison against upstream for all payload
-lengths 1–331. If you change encode behaviour, state in the PR how you
-re-established equivalence (or why intentional divergence is correct per
-ISO/IEC 18004). Keep the MIT attribution headers and `NOTICE` intact.
+Equivalence with upstream is pinned by the fingerprint fixture (check 4
+above) for the parameters this core implements: byte mode, level M,
+versions 1–13, automatic mask, no ECC boosting. If `TestMatrixFingerprints`
+goes red you changed encode behaviour — restore equivalence, or justify the
+intentional divergence per ISO/IEC 18004 in the PR. Regenerate the fixture
+only from upstream (`go run -C scripts/qrfixtures . >
+internal/qr/testdata/matrix_fingerprints.txt`), never from `EncodeM`, and
+only when the upstream pin or the fixture payload rule changes. Keep the
+MIT attribution headers and `NOTICE` intact.
 
 ### Payload rules
 

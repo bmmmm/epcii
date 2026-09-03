@@ -20,10 +20,14 @@ go vet ./... && test -z "$(gofmt -l .)"  # must both pass before commit
 ## Traps
 
 - `internal/qr` is derived from piglig/go-qr (MIT). Do not refactor it
-  casually: its correctness proof was byte-identical equivalence with
-  upstream. Keep attribution headers and `NOTICE`. If you change encode
-  behaviour, re-prove it (decode round-trip is in the tests; equivalence
-  needs justification in the PR).
+  casually: its correctness proof is byte-identical equivalence with
+  upstream, pinned by `TestMatrixFingerprints` against
+  `internal/qr/testdata/matrix_fingerprints.txt` for every payload length
+  0–331. Keep attribution headers and `NOTICE`. Never regenerate that
+  fixture to turn the test green: it comes only from upstream via
+  `go run -C scripts/qrfixtures .` (a separate module, so piglig stays out
+  of `go.mod`), and only when the upstream pin or the payload rule changes
+  — say which in the PR.
 - stdout must carry ONLY the SVG. Anything else (preview, details, errors)
   goes to stderr. Exit codes: 0 ok, 2 bad input/usage, 1 I/O.
 - Payload questions are settled by the official EPC069-12 v3.1 PDF, not by

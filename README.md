@@ -65,9 +65,10 @@ SVG scales losslessly and already includes the 4-module quiet zone.
   of the official EPC069-12 v3.1 guideline.
 - QR encoder core in `internal/qr`, derived from
   [piglig/go-qr](https://github.com/piglig/go-qr) (MIT), reduced to byte
-  mode, level M, versions 1–13 — proven byte-identical to upstream for
-  every payload length and round-trip verified with an independent
-  decoder. See `NOTICE`.
+  mode, level M, versions 1–13 — pinned byte-identical to upstream (level
+  M, no ECC boosting) for every payload length by an in-tree fingerprint
+  fixture, and round-trip verified with an independent decoder. See
+  `NOTICE`.
 - Zero runtime dependencies: the only `go.mod` entry,
   [gozxing](https://github.com/makiuchi-d/gozxing), is a test-only decoder
   used for round-trip verification and is not compiled into the binary.
@@ -80,11 +81,14 @@ go test ./...         # unit, golden, and round-trip tests
 go vet ./... && gofmt -l .
 ```
 
-The encoder is cross-checked three ways: round-trip decoding with the
+The encoder is cross-checked four ways: round-trip decoding with the
 independent gozxing ZXing port, golden payload fixtures generated from
 segno's reference implementation (regenerate via
-`uvx --from segno python scripts/gen_segno_fixtures.py`), and an SVG path
-reconstruction test that rebuilds the module matrix from the emitted path.
+`uvx --from segno python scripts/gen_segno_fixtures.py`), an SVG path
+reconstruction test that rebuilds the module matrix from the emitted path,
+and matrix fingerprints for every payload length generated from the
+upstream piglig/go-qr encoder (`go run -C scripts/qrfixtures .`, a separate
+module so upstream never enters `go.mod`).
 
 ## Contributing
 
