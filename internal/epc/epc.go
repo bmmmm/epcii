@@ -5,6 +5,7 @@ package epc
 import (
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -30,8 +31,8 @@ func (p Payment) Payload() (string, error) {
 	if name == "" {
 		return "", fmt.Errorf("beneficiary name is required")
 	}
-	if n := len([]rune(name)); n > 70 {
-		return "", fmt.Errorf("beneficiary name is %d characters, limit is 70", n)
+	if err := tooLong("beneficiary name", name, 70); err != nil {
+		return "", err
 	}
 
 	iban, err := ValidateIBAN(p.IBAN)
@@ -81,14 +82,14 @@ func (p Payment) Payload() (string, error) {
 			return "", err
 		}
 	}
-	if n := len([]rune(ref)); n > 35 {
-		return "", fmt.Errorf("structured reference is %d characters, limit is 35", n)
+	if err := tooLong("structured reference", ref, 35); err != nil {
+		return "", err
 	}
-	if n := len([]rune(p.Text)); n > 140 {
-		return "", fmt.Errorf("remittance text is %d characters, limit is 140", n)
+	if err := tooLong("remittance text", p.Text, 140); err != nil {
+		return "", err
 	}
-	if n := len([]rune(p.Info)); n > 70 {
-		return "", fmt.Errorf("beneficiary-to-originator info is %d characters, limit is 70", n)
+	if err := tooLong("beneficiary-to-originator info", p.Info, 70); err != nil {
+		return "", err
 	}
 
 	fields := []struct {
@@ -123,9 +124,43 @@ func (p Payment) Payload() (string, error) {
 
 	payload := strings.Join(trimTrailingEmpty(values), "\n")
 	if len(payload) > MaxPayloadBytes {
-		return "", fmt.Errorf("payload is %d bytes, EPC069-12 limit is %d", len(payload), MaxPayloadBytes)
+		hint := ""
+		if hasCombiningMarks(payload) {
+			hint = combiningHint
+		}
+		return "", fmt.Errorf("payload is %d bytes, EPC069-12 limit is %d%s", len(payload), MaxPayloadBytes, hint)
 	}
 	return payload, nil
+}
+
+// combiningHint explains a character or byte overrun caused by decomposed
+// Unicode: text pasted from macOS surfaces often carries "u" plus a combining
+// diaeresis instead of "ü", and every mark counts — against the field limits
+// and against the 331-byte budget alike. NFC normalization would need
+// golang.org/x/text at runtime, which the zero-dependency contract rules out,
+// so the errors name the cause instead.
+const combiningHint = "; the text contains combining marks (decomposed Unicode from copy-paste), each of which counts — retype the accented letters"
+
+func hasCombiningMarks(s string) bool {
+	for _, r := range s {
+		if unicode.Is(unicode.M, r) {
+			return true
+		}
+	}
+	return false
+}
+
+// tooLong reports a character-limit violation for a text field.
+func tooLong(field, s string, limit int) error {
+	n := utf8.RuneCountInString(s)
+	if n <= limit {
+		return nil
+	}
+	hint := ""
+	if hasCombiningMarks(s) {
+		hint = combiningHint
+	}
+	return fmt.Errorf("%s is %d characters, limit is %d%s", field, n, limit, hint)
 }
 
 // trimTrailingEmpty drops empty trailing elements: EPC069-12 marks the tail

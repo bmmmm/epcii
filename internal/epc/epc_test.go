@@ -15,11 +15,8 @@ func TestValidateIBAN(t *testing.T) {
 		"DE89 3704 0044 0532 0130 00",      // no-break spaces (PDF copy-paste)
 		"DE89 3704 0044 0532 0130 00",      // narrow no-break spaces
 		"\tDE89 3704\t0044 0532 0130 00\n", // tabs and trailing newline
-		// TR has no entry in sepaIBANLength, so these two synthetic IBANs sit
-		// on the inner edges of the generic 15-34 range with nothing but that
-		// range deciding them.
-		"TR4412030000000",                    // 15 characters, the lower bound
-		"TR28120300000000002020511203000020", // 34 characters, the upper bound
+		"NO9386011117947",                  // shortest SEPA length (15)
+		"MT84MALT011000012345MTLCAST001S",  // longest SEPA length (31)
 	}
 	for _, in := range valid {
 		got, err := ValidateIBAN(in)
@@ -35,23 +32,29 @@ func TestValidateIBAN(t *testing.T) {
 	invalid := map[string]string{
 		"":                            "empty",
 		"DE02120300000000202052":      "wrong check digit",
-		"DE0212030000000020205":       "21 chars: inside the 15-34 range, so the DE length rule (22) is what rejects it",
+		"DE0212030000000020205":       "21 chars: the DE length rule (22) rejects it before mod-97 runs",
+		"DE0":                         "too short to carry check digits",
+		"D":                           "one letter: shorter than the country code the guard slices",
 		"DE021203000000002020511":     "checksum fails",
-		"XX0000000000000":             "checksum fails",
+		"XX0000000000000":             "unknown country, rejected before mod-97 runs",
 		"D102120300000000202051":      "country code not letters",
 		"DEAB120300000000202051":      "check digits not numeric",
 		"DE02-1203-0000-0000-2020-51": "invalid characters",
 		"DE311203000000002020":        "valid mod-97 but wrong length for DE (20 != 22)",
 		"AT611904300234573201123":     "valid-looking but wrong length for AT (23 != 20)",
-		// Both pass mod-97 and belong to a country outside sepaIBANLength, so
-		// the generic 15-34 range check is the only rule that can reject them.
-		"TR371203000000":                      "14 characters, one below the range",
-		"TR941203000000000020205112030000202": "35 characters, one above the range",
+		// Both pass mod-97; only the SEPA membership rule can reject them.
+		"SA0380000000608010167519": "valid registry example, SA is not a SEPA country",
+		"TR4412030000000":          "valid mod-97, TR is not a SEPA country",
 	}
 	for in, why := range invalid {
 		if _, err := ValidateIBAN(in); err == nil {
 			t.Errorf("ValidateIBAN(%q) should fail (%s)", in, why)
 		}
+	}
+
+	// The rejection must name the rule, not hide behind a checksum message.
+	if _, err := ValidateIBAN("SA0380000000608010167519"); err == nil || !strings.Contains(err.Error(), "SEPA") {
+		t.Errorf("non-SEPA IBAN: error must name SEPA membership, got %v", err)
 	}
 }
 
@@ -275,6 +278,77 @@ func TestPayloadByteLimitBoundary(t *testing.T) {
 		t.Errorf("a %d-byte payload must be rejected, got %d bytes of payload", MaxPayloadBytes+1, len(over))
 	} else if !strings.Contains(err.Error(), "331") {
 		t.Errorf("byte-limit error must name the 331-byte limit, got: %v", err)
+	}
+}
+
+func TestPayloadDecomposedTextHint(t *testing.T) {
+	base := Payment{IBAN: "DE02120300000000202051"}
+
+	// 40 graphemes that look like "ü" but arrive as u + U+0308 (NFD, the
+	// macOS clipboard form): 80 runes, over the limit, and the error must say
+	// why a 40-letter name is "too long".
+	decomposed := base
+	decomposed.Name = strings.Repeat("u\u0308", 40)
+	_, err := decomposed.Payload()
+	if err == nil {
+		t.Fatal("decomposed 80-rune name must exceed the 70-character limit")
+	}
+	if !strings.Contains(err.Error(), "80 characters") || !strings.Contains(err.Error(), "combining marks") {
+		t.Errorf("error must count the runes and name the cause, got %v", err)
+	}
+
+	// Precomposed text over the limit gets the plain message: no false hint.
+	precomposed := base
+	precomposed.Name = strings.Repeat("ü", 71)
+	_, err = precomposed.Payload()
+	if err == nil || strings.Contains(err.Error(), "combining") {
+		t.Errorf("precomposed name must fail without the combining-mark hint, got %v", err)
+	}
+
+	// Within the limit, decomposed text is accepted as typed.
+	short := base
+	short.Name = strings.Repeat("u\u0308", 35)
+	if _, err := short.Payload(); err != nil {
+		t.Errorf("70-rune decomposed name must be accepted: %v", err)
+	}
+
+	// Every field within its character limit, yet the 331-byte budget blows
+	// because each decomposed letter costs three bytes: the byte-limit error
+	// must carry the same hint.
+	bytes := base
+	bytes.Name = strings.Repeat("u\u0308", 35)
+	bytes.Text = strings.Repeat("u\u0308", 70)
+	_, err = bytes.Payload()
+	if err == nil {
+		t.Fatal("decomposed name plus text must exceed 331 bytes")
+	}
+	if !strings.Contains(err.Error(), "bytes") || !strings.Contains(err.Error(), "combining marks") {
+		t.Errorf("byte-limit error must name the cause, got %v", err)
+	}
+}
+
+func TestNormalizeAmountAmbiguous(t *testing.T) {
+	for _, in := range []string{"1.234", "1,234"} {
+		_, err := NormalizeAmount(in)
+		if err == nil || !strings.Contains(err.Error(), "ambiguous") {
+			t.Errorf("NormalizeAmount(%q): want an ambiguity error, got %v", in, err)
+		}
+	}
+	// A zero or leading-zero integer part, no integer part at all, or space
+	// grouping leave only one reading: these must get the plain decimals
+	// message, not advice about thousands grouping.
+	for _, in := range []string{"0.125", ".123", "0580.123", "1 234,567"} {
+		_, err := NormalizeAmount(in)
+		if err == nil || strings.Contains(err.Error(), "ambiguous") {
+			t.Errorf("NormalizeAmount(%q): want the plain decimals error, got %v", in, err)
+		}
+	}
+	// Two separators or an explicit decimal part resolve the ambiguity.
+	for in, want := range map[string]string{"1.234,00": "1234.00", "1,234.00": "1234.00", "1.234.567": "1234567.00", "1,234,567": "1234567.00"} {
+		got, err := NormalizeAmount(in)
+		if err != nil || got != want {
+			t.Errorf("NormalizeAmount(%q) = %q, %v; want %q", in, got, err, want)
+		}
 	}
 }
 

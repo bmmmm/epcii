@@ -9,7 +9,7 @@ asks for and why.
 | Path | What lives there |
 |---|---|
 | `main.go` | CLI: flag parsing, input hardening, output plumbing. Testable via `run()` (`main_test.go`) |
-| `internal/epc` | EPC069-12 payload builder and all validation: IBAN (mod-97 + SEPA lengths), amount normalization, field limits, UTF-8 enforcement |
+| `internal/epc` | EPC069-12 payload builder and all validation: IBAN (SEPA country, length, mod-97), amount normalization, field limits, UTF-8 enforcement |
 | `internal/qr` | QR encoder core — byte mode, ECC level M, versions 1–13, mask selection. Derived from [piglig/go-qr](https://github.com/piglig/go-qr) (MIT, see `NOTICE`) |
 | `internal/render` | SVG / PNG / ANSI-terminal renderers over the module matrix |
 | `scripts/gen_segno_fixtures.py` | One-shot generator for the segno golden fixtures in `internal/epc/testdata/` |
@@ -94,7 +94,11 @@ Payload questions are settled against the **official EPC069-12 guideline**
 which contradict each other on trailing-field and amount-format rules.
 Deliberate choices worth knowing: we always emit two decimals (spec allows
 fewer; segno strips trailing zeros — both conform), and we emit LF (spec
-allows CRLF too).
+allows CRLF too). IBANs outside the SEPA country table are rejected, not
+merely mod-97 checked: the payload initiates a SEPA credit transfer, which
+cannot reach them. Text fields are not NFC-normalized (that would pull
+`golang.org/x/text` into the binary); decomposed input counts every
+combining mark as a character, and the length error says so.
 
 ## Issues and PRs
 

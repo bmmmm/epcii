@@ -8,7 +8,8 @@ import (
 
 // sepaIBANLength maps SEPA-participant country codes to their official IBAN
 // length (SWIFT IBAN Registry, incl. the 2025 joiners AL/MD/ME/MK/RS;
-// verified 2026-08). Countries not listed are only mod-97 checked.
+// verified 2026-08). Countries not listed are rejected: an EPC QR code
+// initiates a SEPA credit transfer, which cannot reach them.
 var sepaIBANLength = map[string]int{
 	"AD": 24, "AL": 28, "AT": 20, "BE": 16, "BG": 22, "CH": 21, "CY": 28,
 	"CZ": 24, "DE": 22, "DK": 18, "EE": 20, "ES": 24, "FI": 18, "FR": 27,
@@ -19,11 +20,11 @@ var sepaIBANLength = map[string]int{
 }
 
 // ValidateIBAN normalizes an IBAN (strips all whitespace, uppercases) and
-// verifies its structure, its country-specific length for SEPA countries,
-// and the ISO 13616 mod-97 check digits. It returns the normalized form
-// suitable for the payload. Every Unicode whitespace rune is dropped, since
-// IBANs copied from PDFs and banking portals carry no-break and narrow
-// spaces between the digit groups.
+// verifies its structure, that its country takes part in SEPA, the
+// country-specific length, and the ISO 13616 mod-97 check digits. It returns
+// the normalized form suitable for the payload. Every Unicode whitespace rune
+// is dropped, since IBANs copied from PDFs and banking portals carry no-break
+// and narrow spaces between the digit groups.
 func ValidateIBAN(iban string) (string, error) {
 	s := strings.Map(func(r rune) rune {
 		if unicode.IsSpace(r) {
@@ -34,8 +35,8 @@ func ValidateIBAN(iban string) (string, error) {
 	if s == "" {
 		return "", fmt.Errorf("IBAN is required")
 	}
-	if len(s) < 15 || len(s) > 34 {
-		return "", fmt.Errorf("IBAN length %d is outside the valid range 15-34", len(s))
+	if len(s) < 4 {
+		return "", fmt.Errorf("IBAN %q is too short to carry a country code and check digits", s)
 	}
 	for i, r := range s {
 		switch {
@@ -47,7 +48,11 @@ func ValidateIBAN(iban string) (string, error) {
 			return "", fmt.Errorf("IBAN contains invalid character %q", r)
 		}
 	}
-	if want, ok := sepaIBANLength[s[:2]]; ok && len(s) != want {
+	want, ok := sepaIBANLength[s[:2]]
+	if !ok {
+		return "", fmt.Errorf("IBAN country %s is not a SEPA participant; an EPC QR code initiates a SEPA credit transfer", s[:2])
+	}
+	if len(s) != want {
 		return "", fmt.Errorf("a %s IBAN has %d characters, got %d", s[:2], want, len(s))
 	}
 	if mod97(s[4:]+s[:4]) != 1 {

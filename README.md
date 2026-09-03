@@ -43,8 +43,8 @@ Output is an SVG on stdout. Options:
 | Flag | Description |
 |---|---|
 | `--name` | Beneficiary name (required, ≤70 chars) |
-| `--iban` | Beneficiary IBAN (required; mod-97 and SEPA length checked) |
-| `--amount` | Amount in EUR, `0.01`–`999999999.99`; German comma form (`580,00`) accepted |
+| `--iban` | Beneficiary IBAN (required; must belong to a SEPA country, length and mod-97 checked) |
+| `--amount` | Amount in EUR, `0.01`–`999999999.99`; German comma form (`580,00`) and thousands grouping (`1.234,56`, `1,234.56`, `1.234.567`) accepted; a lone `1.234` is refused as ambiguous |
 | `--text` | Unstructured remittance text (≤140 chars) |
 | `--ref` | Structured creditor reference (≤35 chars), mutually exclusive with `--text`. `RF` followed by two digits marks an ISO 11649 creditor reference: it is normalized (upper-cased, spaces removed) and checked (≤25 chars, mod-97). Every other reference is passed through after trimming surrounding whitespace |
 | `--bic` | BIC (optional within the EEA) |

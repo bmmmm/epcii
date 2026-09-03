@@ -39,6 +39,10 @@ func NormalizeAmount(in string) (string, error) {
 	switch {
 	case lastComma == -1 && lastDot == -1:
 		intPart, err = stripThousands(s, ' ') // bare "580" or "1 234"
+	case lastComma == -1 && strings.Count(s, ".") > 1: // German whole amount: 1.234.567
+		intPart, err = stripThousands(s, '.')
+	case lastDot == -1 && strings.Count(s, ",") > 1: // English whole amount: 1,234,567
+		intPart, err = stripThousands(s, ',')
 	case lastComma > lastDot: // German: 1.234,56 or 580,5
 		intPart, err = stripThousands(s[:lastComma], '.', ' ')
 		fracPart = s[lastComma+1:]
@@ -53,18 +57,28 @@ func NormalizeAmount(in string) (string, error) {
 	if intPart == "" {
 		intPart = "0"
 	}
-	if len(fracPart) > 2 {
-		return "", fmt.Errorf("amount %q has more than two decimal places", in)
-	}
-	for len(fracPart) < 2 {
-		fracPart += "0"
-	}
 	for _, part := range []string{intPart, fracPart} {
 		for _, r := range part {
 			if r < '0' || r > '9' {
 				return "", fmt.Errorf("amount %q is not a valid number", in)
 			}
 		}
+	}
+	// "1.234" is 1234 to a German reader and 1.234 to an English one: one
+	// separator, a plausible leading group (1-3 digits, no leading zero) and
+	// exactly three digits behind it. Refuse instead of guessing — and say
+	// why. "0.125", ".123" or "1 234,567" are not ambiguous: no thousands
+	// group starts with a zero, and space grouping already fixes the role of
+	// the remaining separator.
+	if len(fracPart) == 3 && len(intPart) <= 3 && intPart[0] != '0' &&
+		strings.Count(s, ".")+strings.Count(s, ",") == 1 && !strings.Contains(s, " ") {
+		return "", fmt.Errorf("amount %q is ambiguous (thousands grouping or three decimals?); write the decimals explicitly, e.g. 1.234,00 or 1,234.00", in)
+	}
+	if len(fracPart) > 2 {
+		return "", fmt.Errorf("amount %q has more than two decimal places", in)
+	}
+	for len(fracPart) < 2 {
+		fracPart += "0"
 	}
 
 	intPart = strings.TrimLeft(intPart, "0")
