@@ -15,6 +15,11 @@ func TestValidateIBAN(t *testing.T) {
 		"DE89 3704 0044 0532 0130 00",      // no-break spaces (PDF copy-paste)
 		"DE89 3704 0044 0532 0130 00",      // narrow no-break spaces
 		"\tDE89 3704\t0044 0532 0130 00\n", // tabs and trailing newline
+		// TR has no entry in sepaIBANLength, so these two synthetic IBANs sit
+		// on the inner edges of the generic 15-34 range with nothing but that
+		// range deciding them.
+		"TR4412030000000",                    // 15 characters, the lower bound
+		"TR28120300000000002020511203000020", // 34 characters, the upper bound
 	}
 	for _, in := range valid {
 		got, err := ValidateIBAN(in)
@@ -30,7 +35,7 @@ func TestValidateIBAN(t *testing.T) {
 	invalid := map[string]string{
 		"":                            "empty",
 		"DE02120300000000202052":      "wrong check digit",
-		"DE0212030000000020205":       "too short for DE but passes length range; checksum must fail",
+		"DE0212030000000020205":       "21 chars: inside the 15-34 range, so the DE length rule (22) is what rejects it",
 		"DE021203000000002020511":     "checksum fails",
 		"XX0000000000000":             "checksum fails",
 		"D102120300000000202051":      "country code not letters",
@@ -38,6 +43,10 @@ func TestValidateIBAN(t *testing.T) {
 		"DE02-1203-0000-0000-2020-51": "invalid characters",
 		"DE311203000000002020":        "valid mod-97 but wrong length for DE (20 != 22)",
 		"AT611904300234573201123":     "valid-looking but wrong length for AT (23 != 20)",
+		// Both pass mod-97 and belong to a country outside sepaIBANLength, so
+		// the generic 15-34 range check is the only rule that can reject them.
+		"TR371203000000":                      "14 characters, one below the range",
+		"TR941203000000000020205112030000202": "35 characters, one above the range",
 	}
 	for in, why := range invalid {
 		if _, err := ValidateIBAN(in); err == nil {
@@ -180,6 +189,11 @@ func TestPayloadValidationDetails(t *testing.T) {
 		"text not UTF-8":           {Name: "X", IBAN: base.IBAN, Text: "\xff\xfe"},
 		"RF ref bad check digits":  {Name: "X", IBAN: base.IBAN, Ref: "RF19539007547034"},
 		"RF ref bad characters":    {Name: "X", IBAN: base.IBAN, Ref: "RF18-53900754"},
+		// A bare CR is a line break too: a reader that treats CR as EOL would
+		// see a different payload than one that only splits on LF.
+		"bare CR in name": {Name: "Erika\rMustermann", IBAN: base.IBAN},
+		"bare CR in text": {Name: "X", IBAN: base.IBAN, Text: "Invoice\r2026"},
+		"CRLF in info":    {Name: "X", IBAN: base.IBAN, Info: "line\r\nbreak"},
 	}
 	for name, p := range bad {
 		if _, err := p.Payload(); err == nil {
@@ -228,5 +242,157 @@ func TestPayloadByteLimit(t *testing.T) {
 		t.Error("expected payload byte-limit error")
 	} else if !strings.Contains(err.Error(), "331") {
 		t.Errorf("expected 331-byte-limit error, got: %v", err)
+	}
+}
+
+// TestPayloadByteLimitBoundary pins the limit itself rather than a payload
+// that overshoots it by hundreds of bytes: 331 bytes must pass and 332 must
+// not. The fixed part is 67 bytes (BCD/002/1/SCT, an 11-char BIC, a 22-char
+// IBAN, "EUR580.00", "GDDS" and the 11 LF separators), so name+text+info of
+// 264 ASCII characters hit the limit exactly.
+func TestPayloadByteLimitBoundary(t *testing.T) {
+	build := func(infoLen int) Payment {
+		return Payment{
+			Name:    strings.Repeat("N", 70),
+			IBAN:    "DE02120300000000202051",
+			BIC:     "COBADEFFXXX",
+			Amount:  "580.00",
+			Purpose: "GDDS",
+			Text:    strings.Repeat("T", 140),
+			Info:    strings.Repeat("I", infoLen),
+		}
+	}
+
+	got, err := build(54).Payload()
+	if err != nil {
+		t.Fatalf("a %d-byte payload must be accepted, got: %v", MaxPayloadBytes, err)
+	}
+	if len(got) != MaxPayloadBytes {
+		t.Fatalf("payload is %d bytes, the boundary case needs exactly %d", len(got), MaxPayloadBytes)
+	}
+
+	if over, err := build(55).Payload(); err == nil {
+		t.Errorf("a %d-byte payload must be rejected, got %d bytes of payload", MaxPayloadBytes+1, len(over))
+	} else if !strings.Contains(err.Error(), "331") {
+		t.Errorf("byte-limit error must name the 331-byte limit, got: %v", err)
+	}
+}
+
+// TestPayloadReference covers the structured reference (AT-T009): ISO 11649
+// "RF" references are normalized and checked, everything else is an issuer's
+// own scheme and must survive untouched.
+func TestPayloadReference(t *testing.T) {
+	base := Payment{Name: "Erika Mustermann", IBAN: "DE02120300000000202051"}
+	// Field order is BCD/version/charset/SCT/bic/name/iban/amount/purpose/ref.
+	const refLine = 9
+
+	accepted := map[string]struct{ in, want string }{
+		"lowercase invoice number keeps its case":  {"inv-2026-abc", "inv-2026-abc"},
+		"inner spaces of a non-RF ref survive":     {"Invoice 2026 001", "Invoice 2026 001"},
+		"invoice number starting with rf survives": {"rfid-77", "rfid-77"},
+		"surrounding whitespace is trimmed":        {"  INV-2026-001  ", "INV-2026-001"},
+		"pasted RF ref is upper-cased and joined":  {"rf18 5390 0754 7034", "RF18539007547034"},
+		"RF ref at the 25-character maximum":       {"RF39539007547034539007547", "RF39539007547034539007547"},
+	}
+	for name, tc := range accepted {
+		p := base
+		p.Ref = tc.in
+		payload, err := p.Payload()
+		if err != nil {
+			t.Errorf("%s: Ref %q: unexpected error: %v", name, tc.in, err)
+			continue
+		}
+		lines := strings.Split(payload, "\n")
+		if len(lines) <= refLine {
+			t.Errorf("%s: Ref %q: payload carries no reference line: %q", name, tc.in, payload)
+			continue
+		}
+		if lines[refLine] != tc.want {
+			t.Errorf("%s: Ref %q: reference line = %q, want %q", name, tc.in, lines[refLine], tc.want)
+		}
+	}
+
+	// Each rejected case also pins which rule spoke, so a future rewrite
+	// cannot collapse them into one blanket "invalid reference".
+	rejected := map[string]struct{ in, wantMsg string }{
+		"RF marker with no body":         {"RF", "at least 5"},
+		"RF marker plus one character":   {"RF1", "at least 5"},
+		"check digits are letters":       {"RFAA14", "check digits"},
+		"26 characters, mod-97 still ok": {"RF635390075470345390075470", "limit is 25"},
+		"29 characters, mod-97 still ok": {"RF255390075470345390075470345", "limit is 25"},
+		"punctuation inside an RF ref":   {"RF18-53900754", "A-Z and 0-9"},
+		"wrong check digits":             {"RF19539007547034", "mod-97"},
+	}
+	for name, tc := range rejected {
+		p := base
+		p.Ref = tc.in
+		payload, err := p.Payload()
+		if err == nil {
+			t.Errorf("%s: Ref %q: expected an error, got payload %q", name, tc.in, payload)
+			continue
+		}
+		if !strings.Contains(err.Error(), tc.wantMsg) {
+			t.Errorf("%s: Ref %q: error %q must name the failing rule (%q)", name, tc.in, err, tc.wantMsg)
+		}
+	}
+
+	// A whitespace-only reference is no reference: it must not trip the
+	// exclusivity rule, and it must leave the payload's ref field empty.
+	blank := base
+	blank.Ref = "   "
+	blank.Text = "Invoice RE-2026-001"
+	payload, err := blank.Payload()
+	if err != nil {
+		t.Fatalf("blank reference with text: unexpected error: %v", err)
+	}
+	want := "BCD\n002\n1\nSCT\n\nErika Mustermann\nDE02120300000000202051\n\n\n\nInvoice RE-2026-001"
+	if payload != want {
+		t.Errorf("blank reference with text:\ngot:  %q\nwant: %q", payload, want)
+	}
+
+	// The exclusivity rule itself still fires for a real reference.
+	both := base
+	both.Ref = "RF18539007547034"
+	both.Text = "Invoice RE-2026-001"
+	if _, err := both.Payload(); err == nil {
+		t.Error("reference and text together must be rejected")
+	} else if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected a mutual-exclusion error, got: %v", err)
+	}
+}
+
+// TestValidateBIC pins the ISO 9362 structure: four letters for the
+// institution, two for the country, then alphanumerics.
+func TestValidateBIC(t *testing.T) {
+	valid := []string{
+		"COBADEFF",    // 8-character BIC
+		"COBADEFFXXX", // 11-character BIC with the XXX head-office branch
+		"MARKDEF1100", // digit in the location code, digits in the branch
+		"BNPAFRPP",
+	}
+	for _, bic := range valid {
+		if err := validateBIC(bic); err != nil {
+			t.Errorf("validateBIC(%q) unexpected error: %v", bic, err)
+		}
+	}
+
+	invalid := map[string]string{
+		"00000000":     "all digits: no institution or country code",
+		"1234DE2X":     "institution code must be letters",
+		"COBA2EFF":     "country code must be letters",
+		"COBADEF":      "7 characters",
+		"TOOLONGBIC12": "12 characters",
+		"COBA-EFF":     "not alphanumeric",
+	}
+	for bic, why := range invalid {
+		if err := validateBIC(bic); err == nil {
+			t.Errorf("validateBIC(%q) should fail (%s)", bic, why)
+		}
+	}
+
+	// The structural rule must be reachable through Payload, not just here.
+	p := Payment{Name: "Erika Mustermann", IBAN: "DE02120300000000202051", BIC: "00000000"}
+	if _, err := p.Payload(); err == nil {
+		t.Error("Payload accepted the placeholder BIC 00000000")
 	}
 }

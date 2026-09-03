@@ -19,7 +19,7 @@ type Payment struct {
 	BIC     string // optional within the EEA, 8 or 11 chars
 	Amount  string // normalized "580.00" form, optional; see NormalizeAmount
 	Purpose string // optional SEPA purpose code (AT-T007), 1-4 alphanumeric
-	Ref     string // structured creditor reference, <=35 chars; RF refs are ISO 11649 checked
+	Ref     string // structured creditor reference, <=35 chars; RF refs are normalized and ISO 11649 checked, others pass through verbatim
 	Text    string // unstructured remittance info, <=140 chars
 	Info    string // beneficiary-to-originator information, <=70 chars
 }
@@ -66,17 +66,22 @@ func (p Payment) Payload() (string, error) {
 		}
 	}
 
-	if p.Ref != "" && p.Text != "" {
+	ref := strings.TrimSpace(p.Ref)
+	if ref != "" && p.Text != "" {
 		return "", fmt.Errorf("structured reference and unstructured text are mutually exclusive")
 	}
-	ref := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(p.Ref), " ", ""))
+	// An ISO 11649 creditor reference is normalized — banks print it in groups
+	// of four — and then mod-97 verified like an IBAN. Every other structured
+	// reference belongs to an issuer's own scheme, where case and inner
+	// spacing may carry meaning, so it passes through untouched.
+	if norm := strings.ToUpper(strings.ReplaceAll(ref, " ", "")); isISO11649Claim(norm) {
+		ref = norm
+		if err := validateCreditorReference(ref); err != nil {
+			return "", err
+		}
+	}
 	if n := len([]rune(ref)); n > 35 {
 		return "", fmt.Errorf("structured reference is %d characters, limit is 35", n)
-	}
-	// An ISO 11649 creditor reference ("RF" + check digits) is mod-97
-	// verifiable like an IBAN; other structured references pass as-is.
-	if strings.HasPrefix(ref, "RF") && (len(ref) < 5 || !isUpperAlnum(ref) || mod97(ref[4:]+ref[:4]) != 1) {
-		return "", fmt.Errorf("creditor reference %q failed the ISO 11649 mod-97 check", ref)
 	}
 	if n := len([]rune(p.Text)); n > 140 {
 		return "", fmt.Errorf("remittance text is %d characters, limit is 140", n)
@@ -133,6 +138,50 @@ func trimTrailingEmpty(fields []string) []string {
 	return fields[:end]
 }
 
+// isISO11649Claim reports whether an already normalized reference presents
+// itself as an ISO 11649 creditor reference. The "RF" marker alone does not
+// settle it — invoice numbers such as "rfid-77" start with those letters too
+// — so one further signal is required: numeric check digits behind the
+// marker, or a body free of the punctuation only issuer schemes carry. A
+// claim is then held to the full standard rather than waved through.
+func isISO11649Claim(ref string) bool {
+	if len(ref) < 2 || ref[0] != 'R' || ref[1] != 'F' {
+		return false
+	}
+	if len(ref) >= 4 && isASCIIDigit(ref[2]) && isASCIIDigit(ref[3]) {
+		return true
+	}
+	return isUpperAlnum(ref)
+}
+
+// validateCreditorReference checks a normalized ISO 11649 creditor reference:
+// "RF", two numeric check digits and 1..21 further alphanumerics, 25
+// characters at most, verified with the mod-97 scheme used for IBANs.
+func validateCreditorReference(ref string) error {
+	// Below five characters there is nothing left to reference, and the
+	// check-digit and mod-97 slices below would be out of bounds.
+	if len(ref) < 5 {
+		return fmt.Errorf("creditor reference %q is %d characters, ISO 11649 requires at least 5", ref, len(ref))
+	}
+	// After this the reference is pure ASCII, so byte offsets are characters.
+	if !isUpperAlnum(ref) {
+		return fmt.Errorf("creditor reference %q may only contain A-Z and 0-9", ref)
+	}
+	if len(ref) > 25 {
+		return fmt.Errorf("creditor reference %q is %d characters, ISO 11649 limit is 25", ref, len(ref))
+	}
+	if !isASCIIDigit(ref[2]) || !isASCIIDigit(ref[3]) {
+		return fmt.Errorf("creditor reference %q: check digits (positions 3-4) must be numeric", ref)
+	}
+	if mod97(ref[4:]+ref[:4]) != 1 {
+		return fmt.Errorf("creditor reference %q failed the ISO 11649 mod-97 check", ref)
+	}
+	return nil
+}
+
+// validateBIC checks an ISO 9362 business identifier code: four letters for
+// the institution, two letters for the country, two alphanumerics for the
+// location and an optional three-character branch code.
 func validateBIC(bic string) error {
 	if len(bic) != 8 && len(bic) != 11 {
 		return fmt.Errorf("BIC must be 8 or 11 characters, got %d", len(bic))
@@ -140,8 +189,15 @@ func validateBIC(bic string) error {
 	if !isUpperAlnum(bic) {
 		return fmt.Errorf("BIC %q contains invalid characters", bic)
 	}
+	for i := 0; i < 6; i++ {
+		if bic[i] < 'A' || bic[i] > 'Z' {
+			return fmt.Errorf("BIC %q: institution and country code (first six characters) must be letters", bic)
+		}
+	}
 	return nil
 }
+
+func isASCIIDigit(b byte) bool { return b >= '0' && b <= '9' }
 
 func isUpperAlnum(s string) bool {
 	for _, r := range s {
