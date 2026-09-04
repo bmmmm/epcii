@@ -95,12 +95,25 @@ func TestRoundTrip331BytesIsVersion13(t *testing.T) {
 	}
 }
 
+// byteCapacityM is the largest byte-mode payload each version holds at level
+// M: the ISO/IEC 18004 data codeword count for that version, less the 4-bit
+// mode indicator and the character count field. Spelled out as literals on
+// purpose — deriving the bound from dataCapacityBits would test the encoder
+// against itself, and a wrong ECC table entry would move the bound with it.
+var byteCapacityM = [MaxVersion + 1]int{
+	-1, 14, 26, 42, 62, 84, 106, 122, 152, 180, 213, 251, 287, 331,
+}
+
 // TestRoundTripAllVersions exercises every version 1-13 at its exact byte
 // capacity, guarding the per-version ECC tables: a wrong table entry makes
 // the symbol undecodable or shifts version selection.
 func TestRoundTripAllVersions(t *testing.T) {
 	for v := MinVersion; v <= MaxVersion; v++ {
-		maxBytes := (dataCapacityBits(v) - 4 - charCountBits(v)) / 8
+		maxBytes := byteCapacityM[v]
+		if got := (dataCapacityBits(v) - 4 - charCountBits(v)) / 8; got != maxBytes {
+			t.Errorf("version %d-M: encoder offers %d payload bytes, ISO/IEC 18004 says %d", v, got, maxBytes)
+			continue
+		}
 		payload := strings.Repeat("a", maxBytes)
 		c, err := EncodeM([]byte(payload))
 		if err != nil {

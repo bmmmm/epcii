@@ -1,0 +1,79 @@
+name: Installation or release binary problem
+description: go install fails, or a downloaded binary will not run or verify
+title: "[install] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is for getting epcii onto a machine — not for what it does
+        once it runs. If the binary starts and produces wrong output, use
+        "Broken or wrong output" instead.
+
+        Every release ships a `SHA256SUMS` file. Please run the checksum
+        comparison below before reporting a corrupt or refused binary: a
+        failing checksum points at the download, a passing one at us.
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: How did you install it?
+      options:
+        - "go install github.com/bmmmm/epcii@latest"
+        - "go install at a pinned version"
+        - "downloaded a release binary"
+        - "built from a checkout (go build)"
+        - "a package manager or other third party"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command and its full output
+      description: >-
+        Include `echo $?` after it. For a download, name the asset file you
+        took.
+      render: sh
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: epcii --version
+      description: >-
+        Leave empty if the binary does not run far enough to print it.
+    validations:
+      required: false
+
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and CPU architecture
+      placeholder: e.g. macOS 15.6 arm64, Ubuntu 24.04 amd64, Windows 11 amd64
+    validations:
+      required: true
+
+  - type: dropdown
+    id: checksum
+    attributes:
+      label: Checksum against SHA256SUMS
+      description: >-
+        `sha256sum -c SHA256SUMS` (Linux), `shasum -a 256 -c SHA256SUMS`
+        (macOS), `Get-FileHash` (Windows).
+      options:
+        - "matches"
+        - "does not match"
+        - "not checked"
+        - "not applicable (installed with go install or built from source)"
+    validations:
+      required: true
+
+  - type: input
+    id: goversion
+    attributes:
+      label: go version
+      description: Only for go install or a build from source.
+    validations:
+      required: false

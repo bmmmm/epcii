@@ -26,7 +26,7 @@ var (
 	numEccBlocksM         = [MaxVersion + 1]int{-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9}
 )
 
-// Code is an immutable, fully rendered QR Code symbol.
+// Code is a fully rendered QR Code symbol; see Matrix for the aliasing rule.
 type Code struct {
 	version int
 	size    int

@@ -105,6 +105,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
+	// Both write to stderr and both ignore a write error on purpose: the
+	// product is the SVG on stdout, and a preview lost to a closed pipe or a
+	// full terminal must not turn a successful encode into a non-zero exit.
 	if term {
 		fmt.Fprint(stderr, render.Terminal(matrix))
 	}
