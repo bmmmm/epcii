@@ -56,7 +56,24 @@ jobs:
         working-directory: dist
         run: sha256sum epcii_* > SHA256SUMS
 
+      # Notes come from CHANGELOG.md, not from the commit list: a release
+      # describes what changed for a user. notes.md stays in the repo root so
+      # the dist/* glob below cannot pick it up as an asset.
+      - name: Release notes from CHANGELOG
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v want="## [$version]" '
+            index($0, want) == 1 { inside = 1; next }
+            inside && /^## \[/    { exit }
+            inside                { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for $version — add one before tagging"
+            exit 1
+          fi
+          cat notes.md
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes dist/*
+        run: gh release create "$GITHUB_REF_NAME" --notes-file notes.md dist/*

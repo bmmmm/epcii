@@ -7,9 +7,16 @@ import (
 )
 
 // sepaIBANLength maps SEPA-participant country codes to their official IBAN
-// length (SWIFT IBAN Registry, incl. the 2025 joiners AL/MD/ME/MK/RS;
-// verified 2026-08). Countries not listed are rejected: an EPC QR code
-// initiates a SEPA credit transfer, which cannot reach them.
+// length. Sources: EPC409-09 v8.0 (EPC List of SEPA Scheme Countries,
+// 24 Dec 2025) for membership, SWIFT IBAN Registry Release 102 (Jun 2026) for
+// the lengths; verified 2026-09-04. AL/MD/ME/MK went live 5 Oct 2025, RS was
+// admitted in May 2025 and went live 5 May 2026. Territories without an IBAN
+// code of their own ride on their country's (Åland on FI, the French overseas
+// departments on FR, Jersey/Guernsey/Isle of Man on GB); Gibraltar is the only
+// one with its own code. The Faroe Islands (FO) and Greenland (GL) have IBAN
+// codes but are not SEPA participants, hence absent. Countries not listed are
+// rejected: an EPC QR code initiates a SEPA credit transfer, which cannot
+// reach them.
 var sepaIBANLength = map[string]int{
 	"AD": 24, "AL": 28, "AT": 20, "BE": 16, "BG": 22, "CH": 21, "CY": 28,
 	"CZ": 24, "DE": 22, "DK": 18, "EE": 20, "ES": 24, "FI": 18, "FR": 27,
