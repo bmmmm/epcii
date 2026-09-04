@@ -54,12 +54,14 @@ what to check.
 
 ### Fixed
 
-- The ISO 11649 check enforces the standard's 25-character limit and requires
-  numeric check digits, and each failure names the rule that actually fired
-  instead of blaming mod-97. `RF255390075470345390075470345` and `RFAA14` were
-  accepted before.
-- A creditor reference of exactly `RF`, or one like `RFQ2026001`, is no longer
-  forced through ISO 11649 validation — only `RF` plus two digits is a claim.
+- The ISO 11649 check enforces the standard's 25-character limit, and each
+  failure names the rule that actually fired instead of blaming mod-97.
+  `RF255390075470345390075470345` carries a valid mod-97 remainder and was
+  accepted before; it is now refused as too long.
+- Only `RF` followed by two digits is treated as an ISO 11649 claim. A
+  reference like `RFAA14`, `RFQ2026001` or a bare `RF` is no longer forced
+  through that validation and passes through as an issuer's own value — it is
+  accepted, but epcii no longer represents it as a checked creditor reference.
   `RF12`, a claim without a body, stays rejected.
 - `--ref "   "` combined with `--text` no longer trips the mutual-exclusion
   check: it is trimmed to empty first.

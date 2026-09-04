@@ -12,8 +12,10 @@ permissions:
 jobs:
   test:
     # Windows is the job that earns the matrix: it is the only place where the
-    # .gitattributes LF policy meets the byte-exact golden fixtures, and where
-    # the PNG tests take their non-POSIX branch.
+    # .gitattributes eol=lf policy meets a fixture compared byte for byte
+    # (internal/qr/testdata/matrix_fingerprints.txt — the *.golden files are
+    # exempt via -text), and the only one that runs writePNG's non-POSIX
+    # branch. The two POSIX-only PNG tests skip there, by design.
     strategy:
       fail-fast: false
       matrix:
@@ -40,14 +42,22 @@ jobs:
         if: runner.os == 'Linux'
         run: go run -C scripts/qrfixtures . | diff - internal/qr/testdata/matrix_fingerprints.txt
 
-      # Both are Linux-only on purpose: neither finding depends on the runner,
-      # and paying for three of each buys nothing. govulncheck is pinned like
-      # any other tool — @latest would let a new release turn the gate red
-      # without a commit here. `go run pkg@version` resolves outside the module,
-      # so the zero-dependency go.mod stays untouched; the check below proves it.
+      # Both are Linux-only: neither finding depends on the runner, and paying
+      # for three of each buys nothing.
+      #
+      # -race is a tripwire, not a gate that can fire today: this module has no
+      # goroutine, channel, sync primitive or t.Parallel, so there is nothing
+      # for the detector to find. It is here so the first concurrent code added
+      # arrives with the detector already running, and costs ~20 s to say so.
       - name: Race detector
         if: runner.os == 'Linux'
         run: go test -race ./...
+      # Pinning the tool keeps its own behaviour reproducible; it does NOT make
+      # this step deterministic — the advisory data is fetched from vuln.go.dev
+      # at run time, so a new advisory against the standard library can turn an
+      # untouched PR red. That is the point of the check, not a defect.
+      # `go run pkg@version` resolves outside the module, so the zero-dependency
+      # go.mod must come through untouched; the diff asserts that contract.
       - name: govulncheck
         if: runner.os == 'Linux'
         run: |

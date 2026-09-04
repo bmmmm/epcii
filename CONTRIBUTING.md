@@ -23,11 +23,25 @@ go test ./...
 go vet ./... && test -z "$(gofmt -l .)"
 ```
 
-CI runs exactly these (`.github/workflows/ci.yml`), plus gitleaks and a
-forbidden-file check (`security.yml`). Pushing a `v*` tag additionally runs
-`release.yml`, which re-runs the tests, cross-compiles the six release
-binaries with the version stamped via `-ldflags`, and publishes them with a
-`SHA256SUMS` file as a GitHub release.
+CI runs exactly these (`.github/workflows/ci.yml`) on Linux, macOS and
+Windows, and on Linux additionally the race detector, `govulncheck`, and a
+byte-for-byte regeneration of the upstream QR fingerprint fixture. `gofmt` and
+that fixture diff are Linux-only — their answer cannot differ per OS.
+`security.yml` adds gitleaks and a forbidden-file check.
+
+## Cutting a release
+
+Pushing a `v*` tag runs `release.yml`: it re-runs the tests, cross-compiles the
+six release binaries with the version stamped via `-ldflags`, and publishes
+them with a `SHA256SUMS` file as a GitHub release.
+
+**Write the `CHANGELOG.md` section before you tag.** The release notes are the
+section whose heading matches the tag without its `v` — `v0.3.0` needs
+`## [0.3.0]`. A tag with no section, or one with a heading but no entries,
+fails the job before anything is built, and you are left with a pushed tag and
+no release; recovering means deleting the tag on both remotes and pushing it
+again. Entries describe the effect on a user, with the input value that behaves
+differently — not the commits.
 
 ## Public contracts — do not break
 

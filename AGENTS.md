@@ -38,6 +38,9 @@ go vet ./... && test -z "$(gofmt -l .)"  # must both pass before commit
 - The segno golden fixtures pair with `scripts/gen_segno_fixtures.py`; if
   you change the cases in `golden_test.go`, regenerate the fixtures and
   keep both in sync.
+- Tagging `vX.Y.Z` requires a matching `## [X.Y.Z]` section with entries in
+  `CHANGELOG.md`: `release.yml` builds its notes from it and fails the job
+  without it. See CONTRIBUTING, "Cutting a release".
 
 ## Definition of done
 
