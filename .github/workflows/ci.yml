@@ -39,3 +39,17 @@ jobs:
       - name: Upstream fixture provenance
         if: runner.os == 'Linux'
         run: go run -C scripts/qrfixtures . | diff - internal/qr/testdata/matrix_fingerprints.txt
+
+      # Both are Linux-only on purpose: neither finding depends on the runner,
+      # and paying for three of each buys nothing. govulncheck is pinned like
+      # any other tool — @latest would let a new release turn the gate red
+      # without a commit here. `go run pkg@version` resolves outside the module,
+      # so the zero-dependency go.mod stays untouched; the check below proves it.
+      - name: Race detector
+        if: runner.os == 'Linux'
+        run: go test -race ./...
+      - name: govulncheck
+        if: runner.os == 'Linux'
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+          git diff --exit-code go.mod go.sum
