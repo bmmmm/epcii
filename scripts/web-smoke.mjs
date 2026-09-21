@@ -99,4 +99,16 @@ for (const name of ['index.html', 'app.js', 'style.css']) {
   else console.log(`ok   web/${name} names no storage, address-bar write or external resource`);
 }
 
+// The download filename must describe the file: rendering is debounced, so
+// the form can be ahead of the last encoded result, and a stem read from the
+// form would name a file after an IBAN it does not contain. fileStem() may
+// only look at that result, never at the DOM.
+{
+  const src = readFileSync(join(root, 'web', 'app.js'), 'utf8');
+  const stem = src.match(/function fileStem\(\)\s*\{[\s\S]*?\n\}/);
+  if (!stem) fail('web/app.js: fileStem() not found — the filename gate has nothing to check');
+  else if (/\$\(|\.value\b|document\./.test(stem[0])) fail('web/app.js: fileStem() reads the form instead of the encoded result');
+  else console.log('ok   web/app.js fileStem() derives the name from the encoded result');
+}
+
 process.exit(failures ? 1 : 0);

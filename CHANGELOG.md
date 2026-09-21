@@ -52,6 +52,13 @@ what to check.
   (`.out.png.<pid>.tmp`) made the write fail with "file exists"; now it is
   left alone and the PNG is written regardless. Permissions are unchanged:
   new files get what `os.Create` would, replaced files keep their mode.
+
+### Fixed
+
+- Web: the download filename is taken from the encoded payload, not from the
+  IBAN field. Rendering is debounced by 150 ms, so a click inside that window
+  could save `epc-<new IBAN>.svg` containing the previous IBAN's code.
+  `web-smoke.mjs` gates it.
 - The PNG scale (8 px per module) is one constant, `render.DefaultPNGScale`,
   shared by `--png` and the web download; behaviour is unchanged.
 

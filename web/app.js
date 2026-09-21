@@ -225,8 +225,12 @@ function guardAmountInput(e) {
 
 // --- downloads
 
+// The stem comes from the payload that was actually encoded, never from the
+// form: rendering is debounced, so the IBAN field may already be ahead of
+// `last`, and the file must not be named after an IBAN it does not contain.
+// Payload line 7 is the IBAN (see PAYLOAD_FIELDS).
 function fileStem() {
-  const iban = $('iban').value.replace(/\s+/g, '').toUpperCase();
+  const iban = last ? last.payload.split('\n')[6] || '' : '';
   return /^[A-Z0-9]+$/.test(iban) ? 'epc-' + iban : 'epc';
 }
 
