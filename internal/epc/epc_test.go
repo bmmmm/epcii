@@ -78,6 +78,10 @@ func TestPayloadRejectsNonASCIIBIC(t *testing.T) {
 		"long s in purpose":     {Name: "X", IBAN: iban, Purpose: "\u017fALA"},
 		"Kelvin sign in BIC":    {Name: "X", IBAN: iban, BIC: "\u212aOBADEFF"}, // U+212A folds to K under ToUpper/ToLower
 		"fullwidth letter, BIC": {Name: "X", IBAN: iban, BIC: "\uff22NPAFRPP"},
+		// An RF claim is folded and mod-97 checked; RF35S12345 passes that
+		// check, so the long s would have produced a valid reference the
+		// user never typed.
+		"long s in RF reference": {Name: "X", IBAN: iban, Ref: "RF35\u017f12345"},
 	}
 	for name, p := range cases {
 		payload, err := p.Payload()
@@ -98,6 +102,13 @@ func TestPayloadRejectsNonASCIIBIC(t *testing.T) {
 	}
 	if !strings.Contains(payload, "\nBNPAFRPP\n") || !strings.Contains(payload, "\nGDDS") {
 		t.Errorf("ASCII folding lost: %q", payload)
+	}
+	// A reference that is not an RF claim belongs to an issuer's scheme and
+	// is never folded, so non-ASCII is legal there and must stay verbatim.
+	issuer := Payment{Name: "X", IBAN: iban, Ref: "Rechnung Müller 2026"}
+	payload, err = issuer.Payload()
+	if err != nil || !strings.Contains(payload, "\nRechnung Müller 2026") {
+		t.Errorf("non-RF reference with non-ASCII must pass through verbatim: %q, %v", payload, err)
 	}
 }
 

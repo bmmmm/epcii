@@ -83,7 +83,13 @@ func (p Payment) Payload() (string, error) {
 	// IBAN. Every other structured reference belongs to an issuer's own
 	// scheme, where case and inner spacing may carry meaning, so it passes
 	// through untouched.
-	if norm := strings.ToUpper(strings.ReplaceAll(ref, " ", "")); isISO11649Claim(norm) {
+	if stripped := strings.ReplaceAll(ref, " ", ""); isISO11649Claim(strings.ToUpper(stripped)) {
+		// An RF claim is ASCII by definition: a homoglyph is named before the
+		// fold instead of becoming a different, checksum-valid reference.
+		norm, err := asciiUpper("structured reference", stripped)
+		if err != nil {
+			return "", err
+		}
 		ref = norm
 		if err := validateCreditorReference(ref); err != nil {
 			return "", err

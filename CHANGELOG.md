@@ -38,11 +38,14 @@ what to check.
 - `--details` shows any character without a visible form as its `\uXXXX`
   escape instead of the raw byte, so the verification view can never drive
   the terminal it is printed on.
-- `--iban`, `--bic` and `--purpose` name a non-ASCII character instead of
-  case-folding it: `ſNPAFRPP` (U+017F, long s) was silently turned into the
-  BIC `SNPAFRPP`, and `GB82WEſT…` into a valid `GB82WEST…`. Both are now
-  refused with `contains a non-ASCII character U+017F ('ſ')`. Plain ASCII
-  lower case still folds as before.
+- `--iban`, `--bic`, `--purpose` and an RF creditor reference in `--ref`
+  name a non-ASCII character instead of case-folding it: `ſNPAFRPP`
+  (U+017F, long s) was silently turned into the BIC `SNPAFRPP`,
+  `GB82WEſT…` into a valid `GB82WEST…`, and `RF35ſ12345` into the
+  checksum-valid `RF35S12345`. All are now refused with `contains a
+  non-ASCII character U+017F ('ſ')`. Plain ASCII lower case still folds as
+  before, and a reference that is not an RF claim keeps passing through
+  verbatim, non-ASCII included.
 - Web: the QR is inserted as a parsed SVG node instead of an HTML string,
   and `web-smoke.mjs` now fails on any HTML string sink in the page sources.
   Nothing visible changes; an SVG the page cannot parse shows an error
@@ -52,6 +55,8 @@ what to check.
   (`.out.png.<pid>.tmp`) made the write fail with "file exists"; now it is
   left alone and the PNG is written regardless. Permissions are unchanged:
   new files get what `os.Create` would, replaced files keep their mode.
+- The PNG scale (8 px per module) is one constant, `render.DefaultPNGScale`,
+  shared by `--png` and the web download; behaviour is unchanged.
 
 ### Fixed
 
@@ -63,8 +68,6 @@ what to check.
   "to any server". They do not send it in requests, but the link lands in
   the browser history like any URL and travels with history sync and
   address-bar suggestions. The footer (EN/DE) and README "Web" say so.
-- The PNG scale (8 px per module) is one constant, `render.DefaultPNGScale`,
-  shared by `--png` and the web download; behaviour is unchanged.
 
 ## [0.2.0] - 2026-09-04
 
