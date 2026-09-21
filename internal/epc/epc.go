@@ -41,7 +41,10 @@ func (p Payment) Payload() (string, error) {
 		return "", err
 	}
 
-	bic := strings.ToUpper(strings.ReplaceAll(p.BIC, " ", ""))
+	bic, err := asciiUpper("BIC", strings.ReplaceAll(p.BIC, " ", ""))
+	if err != nil {
+		return "", err
+	}
 	if bic != "" {
 		if err := validateBIC(bic); err != nil {
 			return "", err
@@ -58,7 +61,10 @@ func (p Payment) Payload() (string, error) {
 	}
 
 	// EPC069-12 section 2.2: purpose (AT-T007) is 1..4 alphanumeric.
-	purpose := strings.ToUpper(strings.TrimSpace(p.Purpose))
+	purpose, err := asciiUpper("purpose code", strings.TrimSpace(p.Purpose))
+	if err != nil {
+		return "", err
+	}
 	if len(purpose) > 4 {
 		return "", fmt.Errorf("purpose code must be at most 4 characters, got %q", purpose)
 	}
@@ -173,6 +179,20 @@ func invisibleRune(s string) (rune, string) {
 		}
 	}
 	return 0, ""
+}
+
+// asciiUpper upper-cases an identifier that is ASCII by definition — BIC,
+// purpose code, IBAN. Anything outside ASCII is refused by name before any
+// folding: strings.ToUpper turns U+017F (long s) into S and U+0131 (dotless
+// i) into I, so a pasted homoglyph would otherwise be validated — and, for
+// the checksum-free BIC, encoded — as a value the user never typed.
+func asciiUpper(field, s string) (string, error) {
+	for _, r := range s {
+		if r > unicode.MaxASCII {
+			return "", fmt.Errorf("%s contains a non-ASCII character U+%04X (%q); only A-Z and 0-9 are valid", field, r, r)
+		}
+	}
+	return strings.ToUpper(s), nil
 }
 
 // tooLong reports a character-limit violation for a text field.

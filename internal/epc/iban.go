@@ -37,10 +37,15 @@ func ValidateIBAN(iban string) (string, error) {
 		if unicode.IsSpace(r) {
 			return -1
 		}
-		return unicode.ToUpper(r)
+		return r
 	}, iban)
 	if s == "" {
 		return "", fmt.Errorf("IBAN is required")
+	}
+	// Non-ASCII is named before the case fold; see asciiUpper.
+	s, err := asciiUpper("IBAN", s)
+	if err != nil {
+		return "", err
 	}
 	if len(s) < 4 {
 		return "", fmt.Errorf("IBAN %q is too short to carry a country code and check digits", s)

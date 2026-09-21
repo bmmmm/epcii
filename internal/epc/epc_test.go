@@ -32,6 +32,7 @@ func TestValidateIBAN(t *testing.T) {
 
 	invalid := map[string]string{
 		"":                            "empty",
+		"GB82WE\u017fT12345698765432": "U+017F (long s) folds to S under ToUpper; a homoglyph must be named, never accepted",
 		"DE02120300000000202052":      "wrong check digit",
 		"DE0212030000000020205":       "21 chars: the DE length rule (22) rejects it before mod-97 runs",
 		"DE0":                         "too short to carry check digits",
@@ -56,6 +57,47 @@ func TestValidateIBAN(t *testing.T) {
 	// The rejection must name the rule, not hide behind a checksum message.
 	if _, err := ValidateIBAN("SA0380000000608010167519"); err == nil || !strings.Contains(err.Error(), "SEPA") {
 		t.Errorf("non-SEPA IBAN: error must name SEPA membership, got %v", err)
+	}
+	// A non-ASCII letter must be named as such before any case folding: the
+	// generic ToUpper turns U+017F into S and U+0131 into I, so the IBAN
+	// would otherwise be validated in a form the user never typed.
+	if _, err := ValidateIBAN("GB82WE\u017fT12345698765432"); err == nil || !strings.Contains(err.Error(), "U+017F") {
+		t.Errorf("homoglyph IBAN: error must name the non-ASCII character, got %v", err)
+	}
+}
+
+// TestPayloadRejectsNonASCIIBIC: BIC and purpose code are ASCII by
+// definition and, unlike the IBAN, carry no checksum. The generic ToUpper
+// silently folded U+017F to S, so a pasted homoglyph became a different,
+// plausible BIC with no warning.
+func TestPayloadRejectsNonASCIIBIC(t *testing.T) {
+	const iban = "DE02120300000000202051"
+	cases := map[string]Payment{
+		"long s in BIC":         {Name: "X", IBAN: iban, BIC: "\u017fNPAFRPP"},
+		"dotless i in BIC":      {Name: "X", IBAN: iban, BIC: "BNPAFRPP\u0131XX"},
+		"long s in purpose":     {Name: "X", IBAN: iban, Purpose: "\u017fALA"},
+		"Kelvin sign in BIC":    {Name: "X", IBAN: iban, BIC: "\u212aOBADEFF"}, // U+212A folds to K under ToUpper/ToLower
+		"fullwidth letter, BIC": {Name: "X", IBAN: iban, BIC: "\uff22NPAFRPP"},
+	}
+	for name, p := range cases {
+		payload, err := p.Payload()
+		if err == nil {
+			t.Errorf("%s: accepted, payload %q", name, payload)
+			continue
+		}
+		if !strings.Contains(err.Error(), "U+") {
+			t.Errorf("%s: error %q must name the non-ASCII codepoint", name, err)
+		}
+	}
+	// Plain ASCII lower case still folds: the rule is about non-ASCII, not
+	// about case.
+	p := Payment{Name: "X", IBAN: iban, BIC: "bnpafrpp", Purpose: "gdds"}
+	payload, err := p.Payload()
+	if err != nil {
+		t.Fatalf("ASCII lower-case BIC and purpose must still be accepted: %v", err)
+	}
+	if !strings.Contains(payload, "\nBNPAFRPP\n") || !strings.Contains(payload, "\nGDDS") {
+		t.Errorf("ASCII folding lost: %q", payload)
 	}
 }
 

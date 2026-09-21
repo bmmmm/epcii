@@ -38,6 +38,11 @@ what to check.
 - `--details` shows any character without a visible form as its `\uXXXX`
   escape instead of the raw byte, so the verification view can never drive
   the terminal it is printed on.
+- `--iban`, `--bic` and `--purpose` name a non-ASCII character instead of
+  case-folding it: `ſNPAFRPP` (U+017F, long s) was silently turned into the
+  BIC `SNPAFRPP`, and `GB82WEſT…` into a valid `GB82WEST…`. Both are now
+  refused with `contains a non-ASCII character U+017F ('ſ')`. Plain ASCII
+  lower case still folds as before.
 - The PNG scale (8 px per module) is one constant, `render.DefaultPNGScale`,
   shared by `--png` and the web download; behaviour is unchanged.
 
