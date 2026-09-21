@@ -96,7 +96,7 @@ for (const name of ['index.html', 'app.js', 'style.css']) {
   const src = readFileSync(join(root, 'web', name), 'utf8');
   const hits = forbidden.filter(([re]) => re.test(src)).map(([, what]) => what);
   if (hits.length) fail(`web/${name} violates the zero-storage contract: ${hits.join(', ')}`);
-  else console.log(`ok   web/${name} names no storage, address-bar write or external resource`);
+  else console.log(`ok   web/${name} names no storage, address-bar write, external resource or HTML string sink`);
 }
 
 // The download filename must describe the file: rendering is debounced, so

@@ -16,7 +16,7 @@ asks for and why.
 | `cmd/epcii-wasm` | `js && wasm` entry point exposing `internal/webapi` as `globalThis.epcii` |
 | `web/` | Static page (HTML/JS/CSS, no framework, no external resources); `web/dist/` is the gitignored build output |
 | `scripts/build-web.sh` | Assembles `web/dist/` (page files, Go's `wasm_exec.js`, the wasm build) |
-| `scripts/web-smoke.mjs` | Node gate: the wasm build's SVG/PNG must equal the CLI's byte for byte |
+| `scripts/web-smoke.mjs` | Node gate: the wasm build's SVG/PNG must equal the CLI's byte for byte; also greps `web/` for storage APIs, address-bar writes, external resources and HTML string sinks, and pins that `fileStem()` reads the encoded result, not the form |
 | `scripts/gen_segno_fixtures.py` | One-shot generator for the segno golden fixtures in `internal/epc/testdata/` |
 | `scripts/qrfixtures/` | Separate Go module: regenerates the upstream matrix fingerprints in `internal/qr/testdata/` from piglig/go-qr |
 

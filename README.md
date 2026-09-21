@@ -154,7 +154,9 @@ upstream piglig/go-qr encoder (`go run -C scripts/qrfixtures .`, a separate
 module so upstream never enters `go.mod`). The web build adds a fifth:
 `scripts/web-smoke.mjs` runs the wasm through Go's `wasm_exec.js` and
 compares its SVG and PNG with the CLI byte for byte, then greps the page
-sources for storage APIs, address-bar writes and external resources.
+sources for storage APIs, address-bar writes, external resources and HTML
+string sinks, and pins that the download name comes from the encoded
+payload rather than the form.
 
 ## Contributing
 
