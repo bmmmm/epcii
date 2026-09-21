@@ -15,6 +15,12 @@ requested.
   0.01–999999999.99, or oversized payloads that still produce a QR code.
 - Crashes or hangs on crafted input (the tool may process untrusted
   invoice data in pipelines).
+- **Data flow of the web version:** anything in
+  <https://bmmmm.github.io/epcii/> that moves an entered name, IBAN or
+  amount off the page other than through the share link, download or
+  share sheet the user asked for — a request carrying field data, a
+  write to storage or the address bar, a resource pulled from another
+  origin. The contract those claims rest on is README “Privacy”.
 
 ## Out of scope
 

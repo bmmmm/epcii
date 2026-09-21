@@ -99,6 +99,46 @@ for (const name of ['index.html', 'app.js', 'style.css']) {
   else console.log(`ok   web/${name} names no storage, address-bar write, external resource or HTML string sink`);
 }
 
+// The CSP is the other half of the privacy contract (README "Privacy"), and
+// the greps above cannot see it: removing the meta tag leaves every one of
+// them green. GitHub Pages cannot send headers, so the policy has no second
+// home -- pin the directives the page's claims rest on.
+//
+// Parsed the way a browser reads it, or the gate lies in both directions:
+// comments are stripped (a commented-out policy is a missing one), the first
+// mention of a directive wins (a browser ignores later duplicates, so a
+// permissive one prepended must not hide a pinned one below), names are
+// case-insensitive, and values are compared as a set so reordering them is
+// not a false alarm.
+{
+  const html = readFileSync(join(root, 'web', 'index.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  const tag = html.match(/<meta\s+http-equiv="Content-Security-Policy"[^>]*?content="([^"]*)"/i);
+  if (!tag) {
+    fail('web/index.html: no Content-Security-Policy meta tag with a content attribute');
+  } else {
+    const norm = (v) => v.split(/\s+/).filter(Boolean).sort().join(' ');
+    const got = new Map();
+    for (const d of tag[1].split(';').map((s) => s.trim()).filter(Boolean)) {
+      const [name, ...vals] = d.split(/\s+/);
+      const key = name.toLowerCase();
+      if (!got.has(key)) got.set(key, norm(vals.join(' ')));
+    }
+    const required = [
+      ['default-src', "'none'"],
+      ['connect-src', "'self'"],
+      ['form-action', "'none'"],
+      ['base-uri', "'none'"],
+      ['script-src', "'self' 'wasm-unsafe-eval'"],
+      ['style-src', "'self'"],
+    ];
+    const bad = required
+      .filter(([k, v]) => got.get(k) !== norm(v))
+      .map(([k, v]) => `${k} must be "${v}", got "${got.get(k) ?? '(absent)'}"`);
+    if (bad.length) fail('web/index.html CSP: ' + bad.join('; '));
+    else console.log('ok   web/index.html CSP pins ' + required.map(([k]) => k).join(', '));
+  }
+}
+
 // The download filename must describe the file: rendering is debounced, so
 // the form can be ahead of the last encoded result, and a stem read from the
 // form would name a file after an IBAN it does not contain. fileStem() may

@@ -80,27 +80,74 @@ IBAN-only is the SEPA norm (a BIC is only needed for accounts outside the
 EEA). Every field of the flag table above is available and travels in share
 links. The page is in English and German; the switch keeps nothing.
 
-What the page does not do:
+### Privacy
+
+Name and IBAN are processed by this page and nowhere else. Three things hold
+that up, and each of them is gated rather than promised:
 
 - **No server, no storage.** GitHub Pages serves a handful of static files;
   there is no backend, no cookie, no local storage, no service worker, no
-  analytics, and no external resource. After the initial load the page makes
-  no further request. (GitHub keeps ordinary access logs for the page load
-  itself, like any web host.)
-- **Share links stay in the fragment.** "Copy link" and "Share" build a URL
-  of the form `…/epcii/#v=1&name=…&iban=…&amount=…`; browsers do not send
-  the `#fragment` in requests, so payment data does not reach GitHub's logs
-  or a `Referer`. The address bar is never written automatically — a link
-  exists only when you ask for one, and opening one fills the form and
-  renders. The link itself is an ordinary URL, though: whoever opens it has
-  it in their browser history, and a browser that syncs history or feeds the
-  address bar to a search provider treats it like any other address. The
-  page cannot prevent that; share such a link as you would share the
-  payment data itself.
+  analytics, and nothing loaded from another origin. Once the page is up,
+  the only URL its script requests is `epcii.wasm` (twice, if the browser
+  forces the non-streaming fallback), and no field you type is ever part of
+  a request. GitHub therefore learns what any web host learns from serving a
+  page (address, time, user agent) and nothing about the payment. The two
+  links in the footer point at github.com, but they are links: nothing is
+  fetched from there unless you click, and `referrer: no-referrer` means a
+  click carries nothing with it.
 - **Content Security Policy.** Pages cannot send HTTP headers, so the policy
   is a `<meta>` tag: `default-src 'none'`, scripts and styles only from the
-  page's own origin, no inline script. Directives that a meta CSP cannot
-  carry (`frame-ancestors`, `sandbox`, `report-uri`) are therefore absent.
+  page's own origin, `connect-src 'self'`, `form-action 'none'`,
+  `base-uri 'none'`, no inline script. No subresource, no XHR or `fetch`,
+  and no form post can reach another origin. What a meta CSP cannot do is
+  also worth stating: `frame-ancestors`, `sandbox` and `report-uri` are
+  ignored in it; `form-action 'none'` stops a form post, but no CSP without
+  `navigate-to` restrains a *scripted* top-level navigation, and none of
+  them covers WebRTC — code running on this page could still carry data
+  away that way. The policy narrows what a bug can do; it is not a substitute
+  for the page being small enough to read.
+- **Gated, not asserted.** `scripts/web-smoke.mjs` greps the page sources
+  for storage APIs, address-bar writes, external resources and HTML string
+  sinks, and pins the CSP directives above, read the way a browser reads
+  them: deleting the `<meta>` tag, commenting it out, widening
+  `connect-src` or prepending a permissive duplicate all fail the run.
+  `.github/workflows/pages.yml` runs that gate in the job the deploy depends
+  on. The two claims above therefore break the build instead of quietly
+  drifting out of date. The grep is a tripwire, not a proof: it catches the
+  APIs it names and URLs written as literals, so it would not by itself
+  notice a `sendBeacon`, a `fetch` built from a variable, or an assignment
+  to `window.location` without a property. Those are caught by the
+  diff being small and reviewed.
+
+Nothing leaves the machine until you ask for it. When you do, it really does
+leave, and the page cannot follow it:
+
+- **Share links stay in the fragment — but a link is a link.** "Copy link"
+  and "Share" build a URL of the form
+  `…/epcii/#v=1&name=…&iban=…&amount=…`; browsers do not send the
+  `#fragment` in requests, so payment data reaches neither GitHub's logs nor
+  a `Referer`. The address bar is never written automatically: a link exists
+  only when you ask for one, and opening one fills the form and renders.
+  Beyond that it is an ordinary URL. Whoever opens it has it in their
+  browser history, and a browser that syncs history or feeds the address bar
+  to a search provider treats it like any other address.
+- **Copying and sharing are the real exit.** "Copy link" puts that URL on
+  the clipboard, which a synchronised clipboard (Apple Universal Clipboard,
+  Windows cloud clipboard) carries to that vendor. Whatever you then paste
+  it into — mail, a messenger — sees name and IBAN in clear text inside the
+  link: the fragment hides them from a web server, not from the channel you
+  send them through. "Share" hands the same URL — and, where the platform
+  accepts a file, the SVG — to the operating system's share sheet and to the
+  app you pick there. Share such a link as you would share the payment data
+  itself.
+- **Downloads carry the IBAN in the file name.** The buttons save
+  `epc-<IBAN>.svg` / `.png`, named after the payload that was actually
+  encoded. That makes a folder of codes sortable, but it also means the IBAN
+  is legible in a directory listing, a cloud folder or a backup before
+  anyone scans anything.
+- **What the page cannot control.** A browser extension can read form fields
+  on any page; a CSP does not stop it. `autocomplete="off"` is set on the
+  form, but browsers may offer autofill regardless.
 
 Build it locally with `scripts/build-web.sh` (output in `web/dist/`, served
 by any static file server) and check it with `node scripts/web-smoke.mjs`
