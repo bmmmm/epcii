@@ -4,9 +4,13 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -193,10 +197,25 @@ func writePNG(path string, matrix [][]bool) error {
 		keepMode, existed = info.Mode().Perm(), true
 	}
 
-	name := filepath.Join(filepath.Dir(path), fmt.Sprintf(".%s.%d.tmp", filepath.Base(path), os.Getpid()))
-	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
-	if err != nil {
-		return err
+	// The scratch name carries a random suffix. A predictable one (the pid,
+	// until 2026-09) let a file planted under that name block every write
+	// into the directory with "file exists" and marked the close-to-rename
+	// window in a shared, non-sticky directory. O_EXCL still refuses to
+	// follow a planted symlink; a name collision simply gets a fresh suffix.
+	var (
+		f    *os.File
+		name string
+	)
+	for attempt := 0; ; attempt++ {
+		name = filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+"."+randomSuffix()+".tmp")
+		var err error
+		f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, fs.ErrExist) || attempt >= 16 {
+			return err
+		}
 	}
 	fail := func(err error) error {
 		os.Remove(name)
@@ -218,6 +237,15 @@ func writePNG(path string, matrix [][]bool) error {
 		return fail(err)
 	}
 	return nil
+}
+
+// randomSuffix returns 16 hex characters from the system's random source for
+// the PNG scratch name. crypto/rand never fails on the supported platforms
+// (it panics rather than returning weak bytes since Go 1.24).
+func randomSuffix() string {
+	var b [8]byte
+	rand.Read(b[:])
+	return hex.EncodeToString(b[:])
 }
 
 // versionString reports the release version. An -ldflags override wins;

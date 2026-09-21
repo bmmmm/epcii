@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -301,6 +302,40 @@ func TestRunPNGFailedWriteKeepsExistingFile(t *testing.T) {
 	}
 	if !bytes.Equal(got, existing) {
 		t.Errorf("existing file was clobbered: %q", got)
+	}
+	assertNoScratchFiles(t, dir)
+}
+
+// TestRunPNGScratchNameUnpredictable: the scratch file used to be
+// .<name>.<pid>.tmp — guessable, so a file planted under that name made
+// every --png into the directory fail with "file exists", and in a
+// non-sticky shared directory it marked the window between close and
+// rename. A decoy under the old name must neither block the write nor be
+// touched by it.
+func TestRunPNGScratchNameUnpredictable(t *testing.T) {
+	dir := t.TempDir()
+	pngPath := filepath.Join(dir, "out.png")
+	decoy := filepath.Join(dir, fmt.Sprintf(".out.png.%d.tmp", os.Getpid()))
+	if err := os.WriteFile(decoy, []byte("planted"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := runCLI(t,
+		"--name", "ACME GmbH", "--iban", "DE02120300000000202051", "--png", pngPath)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s — a decoy scratch file must not block the write", code, errOut)
+	}
+	data, err := os.ReadFile(pngPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(data, []byte("\x89PNG")) {
+		t.Error("written file is not a PNG")
+	}
+	if got, err := os.ReadFile(decoy); err != nil || string(got) != "planted" {
+		t.Errorf("the decoy must survive untouched: %q, %v", got, err)
+	}
+	if err := os.Remove(decoy); err != nil {
+		t.Fatal(err)
 	}
 	assertNoScratchFiles(t, dir)
 }

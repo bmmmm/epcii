@@ -47,6 +47,11 @@ what to check.
   and `web-smoke.mjs` now fails on any HTML string sink in the page sources.
   Nothing visible changes; an SVG the page cannot parse shows an error
   instead of a stale code.
+- `--png` names its scratch file with a random suffix instead of the
+  process id. A file planted under the old predictable name
+  (`.out.png.<pid>.tmp`) made the write fail with "file exists"; now it is
+  left alone and the PNG is written regardless. Permissions are unchanged:
+  new files get what `os.Create` would, replaced files keep their mode.
 - The PNG scale (8 px per module) is one constant, `render.DefaultPNGScale`,
   shared by `--png` and the web download; behaviour is unchanged.
 
