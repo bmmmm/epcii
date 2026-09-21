@@ -87,6 +87,10 @@ const forbidden = [
   [/<(script|link|img|iframe)[^>]+(src|href)=["']https?:/i, 'external resource tag'],
   [/@import|url\(\s*["']?https?:/i, 'external stylesheet resource'],
   [/\bimport\s*\(|\bfetch\(\s*["']https?:/, 'dynamic import / cross-origin fetch'],
+  // The SVG is inserted as a parsed XML node, never as an HTML string: the
+  // "render.SVG emits only geometry" invariant belongs to another module,
+  // and a string sink here would turn any future change there into script.
+  [/\binnerHTML\b|\bouterHTML\s*=|insertAdjacentHTML|document\.write\s*\(/, 'HTML string sink'],
 ];
 for (const name of ['index.html', 'app.js', 'style.css']) {
   const src = readFileSync(join(root, 'web', name), 'utf8');

@@ -33,6 +33,7 @@ const STR = {
     load_failed: 'The generator could not be loaded. Your browser needs WebAssembly.',
     empty: 'Enter at least a name and an IBAN.',
     bad_link: 'This link was made by a newer version of the page and was not loaded.',
+    bad_svg: 'The generator returned an image this page cannot show.',
     dl_svg: 'Download SVG',
     dl_png: 'Download PNG',
     copy_link: 'Copy link',
@@ -63,6 +64,7 @@ const STR = {
     load_failed: 'Der Generator konnte nicht geladen werden. Der Browser braucht WebAssembly.',
     empty: 'Mindestens Name und IBAN eingeben.',
     bad_link: 'Dieser Link stammt von einer neueren Version der Seite und wurde nicht geladen.',
+    bad_svg: 'Der Generator hat ein Bild geliefert, das diese Seite nicht anzeigen kann.',
     dl_svg: 'SVG herunterladen',
     dl_png: 'PNG herunterladen',
     copy_link: 'Link kopieren',
@@ -143,6 +145,17 @@ function render() {
     // Fail closed: a stale QR next to new field values must never survive.
     res = { error: String(e && e.message ? e.message : e) };
   }
+  let svg = null;
+  if (!res.error) {
+    // The SVG is parsed as XML and inserted as a node, never assigned as an
+    // HTML string. render.SVG emits geometry only, but that invariant lives
+    // in another module; a string sink here would turn any change there
+    // into script running in this page's origin.
+    svg = new DOMParser().parseFromString(res.svg, 'image/svg+xml').documentElement;
+    if (svg.nodeName !== 'svg' || svg.querySelector('parsererror')) {
+      res = { error: STR[lang].bad_svg };
+    }
+  }
   if (res.error) {
     last = null;
     showError(res.error);
@@ -153,8 +166,7 @@ function render() {
   }
   last = res;
   showError('');
-  // Safe: render.SVG emits only numeric path data, never user input.
-  els.qr.innerHTML = res.svg;
+  els.qr.replaceChildren(document.importNode(svg, true));
   els.qr.hidden = false;
   showDetails(res);
   els.detailsBox.hidden = false;

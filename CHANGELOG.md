@@ -43,6 +43,10 @@ what to check.
   BIC `SNPAFRPP`, and `GB82WEſT…` into a valid `GB82WEST…`. Both are now
   refused with `contains a non-ASCII character U+017F ('ſ')`. Plain ASCII
   lower case still folds as before.
+- Web: the QR is inserted as a parsed SVG node instead of an HTML string,
+  and `web-smoke.mjs` now fails on any HTML string sink in the page sources.
+  Nothing visible changes; an SVG the page cannot parse shows an error
+  instead of a stale code.
 - The PNG scale (8 px per module) is one constant, `render.DefaultPNGScale`,
   shared by `--png` and the web download; behaviour is unchanged.
 
