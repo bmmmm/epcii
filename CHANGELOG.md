@@ -10,6 +10,15 @@ what to check.
 
 ### Added
 
+- `web-smoke.mjs` pins the Content-Security-Policy directives of
+  `web/index.html`, parsed the way a browser reads the policy: comments
+  stripped, the first mention of a directive wins, names case-insensitive,
+  values compared as a set. Deleting the meta tag, commenting it out,
+  widening `connect-src` or prepending a permissive duplicate fail the gate;
+  before this nothing read the policy at all. README gains a "Privacy"
+  section separating what the gates hold up from what sharing, copying and
+  downloading set off, and SECURITY.md puts the web version's data flow in
+  scope.
 - Web version at <https://bmmmm.github.io/epcii/>: the CLI pipeline compiled
   to WebAssembly (`cmd/epcii-wasm`, `internal/webapi`) behind a static page
   (`web/`) deployed by `pages.yml`. No server, no storage, no external
@@ -64,6 +73,11 @@ what to check.
   IBAN field. Rendering is debounced by 150 ms, so a click inside that window
   could save `epc-<new IBAN>.svg` containing the previous IBAN's code.
   `web-smoke.mjs` gates it.
+- Web: the share link is built from the encoded result as well, not from the
+  form. Within the same debounce window "Share" could hand over a link
+  describing one IBAN next to an SVG encoding the previous one.
+  `web-smoke.mjs` gates `shareParams()` the way it gates `fileStem()`, and
+  gates the snapshot in `render()` that both of them read.
 - Web: the privacy note no longer says browsers "never send" the #fragment
   "to any server". They do not send it in requests, but the link lands in
   the browser history like any URL and travels with history sync and

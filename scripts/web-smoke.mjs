@@ -139,16 +139,53 @@ for (const name of ['index.html', 'app.js', 'style.css']) {
   }
 }
 
-// The download filename must describe the file: rendering is debounced, so
-// the form can be ahead of the last encoded result, and a stem read from the
-// form would name a file after an IBAN it does not contain. fileStem() may
-// only look at that result, never at the DOM.
+// Everything a share carries must describe one and the same payment. The
+// file name, the link and the attached image all come from the last encoded
+// result; reading the form instead would let them disagree, because
+// rendering is debounced (150 ms) and the form can already be ahead. A link
+// saying IBAN B next to an image encoding IBAN A is the failure this pins.
+//
+// The body is cut by matching braces, not by the next line starting with
+// "}", which a nested block would end early, hiding whatever follows it
+// inside the function. Braces in strings and comments are still counted,
+// so a template literal can still cut the slice short -- the snapshot
+// check below does not rely on the slice and catches what it would miss.
+function bodyOf(src, fn) {
+  const start = src.indexOf(`function ${fn}(`);
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = src.indexOf('{', start); i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}' && --depth === 0) return src.slice(start, i + 1);
+  }
+  return null;
+}
+
 {
   const src = readFileSync(join(root, 'web', 'app.js'), 'utf8');
-  const stem = src.match(/function fileStem\(\)\s*\{[\s\S]*?\n\}/);
-  if (!stem) fail('web/app.js: fileStem() not found — the filename gate has nothing to check');
-  else if (/\$\(|\.value\b|document\./.test(stem[0])) fail('web/app.js: fileStem() reads the form instead of the encoded result');
-  else console.log('ok   web/app.js fileStem() derives the name from the encoded result');
+  for (const fn of ['fileStem', 'shareParams']) {
+    const body = bodyOf(src, fn);
+    if (!body) {
+      fail(`web/app.js: ${fn}() not found -- its gate has nothing to check`);
+    } else if (/\breadForm\b|\$\(|\.value\b|document\./.test(body)) {
+      fail(`web/app.js: ${fn}() reads the form instead of the encoded result`);
+    } else {
+      console.log(`ok   web/app.js ${fn}() derives its value from the encoded result`);
+    }
+  }
+
+  // Both of those only hold because render() snapshots the fields onto the
+  // result before publishing it. Without that line shareParams() has nothing
+  // to read, so gate the assignment itself, and its order.
+  const render = bodyOf(src, 'render');
+  const snapshot = render ? render.indexOf('res.fields = fields;') : -1;
+  const publish = render ? render.indexOf('last = res;') : -1;
+  const share = bodyOf(src, 'shareParams');
+  if (!render) fail('web/app.js: render() not found -- the snapshot gate has nothing to check');
+  else if (snapshot === -1) fail('web/app.js: render() does not snapshot the encoded fields onto the result');
+  else if (publish === -1 || snapshot > publish) fail('web/app.js: render() publishes the result before snapshotting its fields');
+  else if (share && !share.includes('last.fields')) fail('web/app.js: shareParams() does not read the snapshot');
+  else console.log('ok   web/app.js render() snapshots the encoded fields before publishing the result');
 }
 
 process.exit(failures ? 1 : 0);

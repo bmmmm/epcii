@@ -88,7 +88,7 @@ const els = {
 };
 
 let lang = 'en';
-let last = null; // last successful generate() result
+let last = null; // last successful generate() result, plus the fields it came from
 let statusKey = 'loading'; // STR key shown in #status while the wasm is not usable
 let statusDetail = ''; // appended to the load_failed message
 let ready = false; // wasm loaded and globalThis.epcii registered
@@ -164,6 +164,10 @@ function render() {
     els.detailsBox.hidden = true;
     return;
   }
+  // The fields that produced this result travel with it: rendering is
+  // debounced, so the form can already be ahead, and a share link built
+  // from the form would describe a payment the attached image does not.
+  res.fields = fields;
   last = res;
   showError('');
   els.qr.replaceChildren(document.importNode(svg, true));
@@ -181,11 +185,14 @@ function scheduleRender() {
 
 // --- share link: #v=1&name=…  (fragment only; never written to the address bar)
 
+// Built from the encoded result, never from the form — same reason as
+// fileStem(): "Share" sends this link and that SVG together, and within
+// the debounce window the form may already hold a different IBAN.
 function shareParams() {
   const p = new URLSearchParams();
   p.set('v', LINK_VERSION);
-  const fields = readForm();
-  for (const k of FIELDS) if (fields[k] !== '') p.set(k, fields[k]);
+  const fields = (last && last.fields) || {};
+  for (const k of FIELDS) if (fields[k] !== undefined && fields[k] !== '') p.set(k, fields[k]);
   return p;
 }
 
