@@ -76,6 +76,12 @@ button:disabled { cursor: default; opacity: 0.7; }
    <details> itself makes some engines show the folded content. */
 #more { margin-top: 14px; }
 #more > summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+/* The field names stay in the text so a search for "BIC" finds them.
+   The hierarchy comes from the label's weight, not from dimming the
+   list: --muted only just clears 4.5:1, so any opacity below ~0.9
+   drops the names under AA (measured 3.85:1 at 0.7). */
+#more > summary span { font-weight: 600; }
+#more > summary small { font-size: inherit; }
 #more-fields { display: grid; gap: 4px; }
 
 #result { position: sticky; top: 16px; }

@@ -35,6 +35,14 @@ what to check.
 
 ### Changed
 
+- Web: the "More fields" summary no longer spells the four field names out
+  in a parenthesis. They stay in the summary as a quieter list
+  (`reference · BIC · purpose code · note`), which is visible even while
+  the section is folded, so looking for "BIC" still finds it. The
+  hierarchy comes from the label's weight, not from dimming the names:
+  at `opacity: 0.7` they measured 3.85:1 against the dark background and
+  would have failed WCAG AA; they now sit at 6.66:1 (dark) and 5.74:1
+  (light).
 - Every field refuses invisible characters, not only line breaks: a control
   character (ESC, NUL, TAB, DEL, the C1 range) or a format character (bidi
   overrides such as U+202E, zero-width space and joiner, BOM) is rejected
