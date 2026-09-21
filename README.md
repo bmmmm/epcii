@@ -88,12 +88,15 @@ What the page does not do:
   no further request. (GitHub keeps ordinary access logs for the page load
   itself, like any web host.)
 - **Share links stay in the fragment.** "Copy link" and "Share" build a URL
-  of the form `…/epcii/#v=1&name=…&iban=…&amount=…`; browsers never send the
-  `#fragment` to a server, so payment data does not reach GitHub's logs or a
-  `Referer`. The address bar is never written automatically — a link exists
-  only when you ask for one, and opening one fills the form and renders.
-  Whoever opens such a link has it in their own browser history, as with any
-  URL; the page cannot prevent that.
+  of the form `…/epcii/#v=1&name=…&iban=…&amount=…`; browsers do not send
+  the `#fragment` in requests, so payment data does not reach GitHub's logs
+  or a `Referer`. The address bar is never written automatically — a link
+  exists only when you ask for one, and opening one fills the form and
+  renders. The link itself is an ordinary URL, though: whoever opens it has
+  it in their browser history, and a browser that syncs history or feeds the
+  address bar to a search provider treats it like any other address. The
+  page cannot prevent that; share such a link as you would share the
+  payment data itself.
 - **Content Security Policy.** Pages cannot send HTTP headers, so the policy
   is a `<meta>` tag: `default-src 'none'`, scripts and styles only from the
   page's own origin, no inline script. Directives that a meta CSP cannot

@@ -59,6 +59,10 @@ what to check.
   IBAN field. Rendering is debounced by 150 ms, so a click inside that window
   could save `epc-<new IBAN>.svg` containing the previous IBAN's code.
   `web-smoke.mjs` gates it.
+- Web: the privacy note no longer says browsers "never send" the #fragment
+  "to any server". They do not send it in requests, but the link lands in
+  the browser history like any URL and travels with history sync and
+  address-bar suggestions. The footer (EN/DE) and README "Web" say so.
 - The PNG scale (8 px per module) is one constant, `render.DefaultPNGScale`,
   shared by `--png` and the web download; behaviour is unchanged.
 
