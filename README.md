@@ -63,6 +63,37 @@ input fails with a named-field error before anything is encoded.
 For print, keep the symbol at least ~40 mm wide (EPC recommendation); the
 SVG scales losslessly and already includes the 4-module quiet zone.
 
+## Web
+
+The same generator runs in the browser at
+<https://bmmmm.github.io/epcii/>: the Go code is compiled to WebAssembly
+(`cmd/epcii-wasm`), so validation, encoder and renderers are the ones above,
+and the SVG and PNG you download are byte-identical to the CLI's output —
+`scripts/web-smoke.mjs` proves that in CI on every change.
+
+What the page does not do:
+
+- **No server, no storage.** GitHub Pages serves a handful of static files;
+  there is no backend, no cookie, no local storage, no service worker, no
+  analytics, and no external resource. After the initial load the page makes
+  no further request. (GitHub keeps ordinary access logs for the page load
+  itself, like any web host.)
+- **Share links stay in the fragment.** "Copy link" and "Share" build a URL
+  of the form `…/epcii/#v=1&name=…&iban=…&amount=…`; browsers never send the
+  `#fragment` to a server, so payment data does not reach GitHub's logs or a
+  `Referer`. The address bar is never written automatically — a link exists
+  only when you ask for one, and opening one fills the form and renders.
+  Whoever opens such a link has it in their own browser history, as with any
+  URL; the page cannot prevent that.
+- **Content Security Policy.** Pages cannot send HTTP headers, so the policy
+  is a `<meta>` tag: `default-src 'none'`, scripts and styles only from the
+  page's own origin, no inline script. Directives that a meta CSP cannot
+  carry (`frame-ancestors`, `sandbox`, `report-uri`) are therefore absent.
+
+Build it locally with `scripts/build-web.sh` (output in `web/dist/`, served
+by any static file server) and check it with `node scripts/web-smoke.mjs`
+after `go build -o epcii .`.
+
 ## Design
 
 - EPC069-12 version 002 payload, UTF-8, LF separators, ≤331 bytes,

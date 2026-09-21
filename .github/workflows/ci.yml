@@ -35,6 +35,15 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go build .
+      # The web build (cmd/epcii-wasm, tagged js&&wasm, so `go vet ./...`
+      # never sees it) must compile, and its SVG/PNG must equal the CLI's byte
+      # for byte. One runner: the wasm target does not vary by host OS.
+      - name: Web build + smoke
+        if: runner.os == 'Linux'
+        run: |
+          GOOS=js GOARCH=wasm go vet ./cmd/epcii-wasm
+          scripts/build-web.sh
+          node scripts/web-smoke.mjs
       # The upstream fixture must stay reproducible from the pinned
       # piglig/go-qr, so the generator (its own module, outside ./...) is
       # built and its output compared byte for byte on every run.

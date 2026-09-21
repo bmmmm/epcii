@@ -1,0 +1,100 @@
+:root {
+  color-scheme: light dark;
+  --bg: #fff;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --line: #ccc;
+  --accent: #0b57d0;
+  --error: #b3261e;
+  --error-bg: #fdecea;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212;
+    --fg: #e6e6e6;
+    --muted: #9a9a9a;
+    --line: #444;
+    --accent: #8ab4f8;
+    --error: #f2b8b5;
+    --error-bg: #3a1f1d;
+  }
+}
+
+* { box-sizing: border-box; }
+/* Author display rules below would otherwise beat the UA's [hidden] rule. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0 auto;
+  padding: 16px;
+  max-width: 900px;
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+header { position: relative; }
+h1 { margin: 0 0 4px; font-size: 1.6rem; }
+header p { margin: 0 0 16px; color: var(--muted); }
+nav { position: absolute; top: 0; right: 0; }
+.lang { padding: 2px 8px; font-size: 0.85rem; }
+.lang[aria-pressed="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+main { display: grid; gap: 24px; }
+@media (min-width: 720px) {
+  main { grid-template-columns: 1fr 340px; align-items: start; }
+}
+
+fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 4px; }
+fieldset:disabled { opacity: 0.6; }
+label { margin-top: 10px; font-size: 0.9rem; }
+label small { color: var(--error); }
+input {
+  width: 100%;
+  padding: 8px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+button {
+  padding: 8px 14px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { cursor: default; opacity: 0.7; }
+
+#result { position: sticky; top: 16px; }
+#status { color: var(--muted); }
+#error {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  color: var(--error);
+  background: var(--error-bg);
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+#qr { width: 100%; max-width: 320px; }
+#qr svg { display: block; width: 100%; height: auto; }
+#actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+details { margin-top: 12px; font-size: 0.85rem; }
+summary { cursor: pointer; color: var(--muted); }
+pre {
+  margin: 8px 0 0;
+  padding: 8px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+footer a { color: var(--accent); }

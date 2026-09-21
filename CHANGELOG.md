@@ -8,6 +8,15 @@ what to check.
 
 ## [Unreleased]
 
+### Added
+
+- Web version at <https://bmmmm.github.io/epcii/>: the CLI pipeline compiled
+  to WebAssembly (`cmd/epcii-wasm`, `internal/webapi`) behind a static page
+  (`web/`) deployed by `pages.yml`. No server, no storage, no external
+  resources; share links carry the fields only in the URL fragment. SVG and
+  PNG downloads are byte-identical to the CLI, enforced by
+  `scripts/web-smoke.mjs` in CI. See README "Web".
+
 ## [0.2.0] - 2026-09-04
 
 ### Changed

@@ -16,6 +16,10 @@ go vet ./... && test -z "$(gofmt -l .)"  # must both pass before commit
 - `internal/epc` — payload builder + ALL validation
 - `internal/qr` — QR encoder (byte mode, level M, versions 1–13)
 - `internal/render` — SVG / PNG / terminal renderers
+- `internal/webapi` + `cmd/epcii-wasm` + `web/` — browser version (WASM);
+  `scripts/build-web.sh` builds `web/dist/`, `scripts/web-smoke.mjs` proves
+  it equals the CLI byte for byte. Zero-storage page: never add storage,
+  external resources, or writes to the address bar.
 
 ## Traps
 

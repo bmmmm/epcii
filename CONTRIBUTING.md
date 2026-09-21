@@ -12,6 +12,11 @@ asks for and why.
 | `internal/epc` | EPC069-12 payload builder and all validation: IBAN (SEPA country, length, mod-97), amount normalization, field limits, UTF-8 enforcement |
 | `internal/qr` | QR encoder core — byte mode, ECC level M, versions 1–13, mask selection. Derived from [piglig/go-qr](https://github.com/piglig/go-qr) (MIT, see `NOTICE`) |
 | `internal/render` | SVG / PNG / ANSI-terminal renderers over the module matrix |
+| `internal/webapi` | The CLI pipeline as one pure function for the browser build; native tests |
+| `cmd/epcii-wasm` | `js && wasm` entry point exposing `internal/webapi` as `globalThis.epcii` |
+| `web/` | Static page (HTML/JS/CSS, no framework, no external resources); `web/dist/` is the gitignored build output |
+| `scripts/build-web.sh` | Assembles `web/dist/` (page files, Go's `wasm_exec.js`, the wasm build) |
+| `scripts/web-smoke.mjs` | Node gate: the wasm build's SVG/PNG must equal the CLI's byte for byte |
 | `scripts/gen_segno_fixtures.py` | One-shot generator for the segno golden fixtures in `internal/epc/testdata/` |
 | `scripts/qrfixtures/` | Separate Go module: regenerates the upstream matrix fingerprints in `internal/qr/testdata/` from piglig/go-qr |
 
@@ -54,6 +59,10 @@ differently — not the commits.
   fields trimmed together with their separators.
 - **Zero runtime dependencies.** `go.mod` may only grow test-only entries,
   each with a one-line justification.
+- **The web version is the CLI.** Its SVG and PNG stay byte-identical to
+  `epcii` / `epcii --png` (`scripts/web-smoke.mjs`), and the page stores and
+  sends nothing: no cookies, no web storage, no service worker, no external
+  resource, no automatic write to the address bar. See README "Web".
 
 `internal/` is not a public Go API — its shape may change freely.
 
