@@ -1,8 +1,9 @@
 // epcii web: form → globalThis.epcii.generate (Go/WASM) → inline SVG.
 //
-// Zero-storage contract: this file never touches localStorage, sessionStorage,
-// cookies, IndexedDB, history or location.hash. The only state that can leave
-// the page is a share link the user asks for, and it lives in the #fragment.
+// Zero-storage contract: this file never touches a storage API, cookies, the
+// history or the address bar (scripts/web-smoke.mjs greps for that). The only
+// state that can leave the page is a share link the user asks for, and it
+// lives in the #fragment.
 'use strict';
 
 const FIELDS = ['name', 'iban', 'amount', 'text', 'ref', 'bic', 'purpose', 'info'];
@@ -20,13 +21,20 @@ const STR = {
     amount: 'Amount (EUR)',
     amount_ph: 'e.g. 12.50 or 12,50',
     text: 'Remittance text',
+    more_fields: 'More fields (reference, BIC, purpose code, note to the payer)',
     ref: 'Creditor reference',
     ref_ph: 'RF… (excludes remittance text)',
+    bic_ph: 'only for accounts outside the EEA',
     purpose: 'Purpose code',
-    info: 'Information to the payer',
+    purpose_ph: 'e.g. SALA, 4 letters',
+    info: 'Note shown to the payer',
+    language: 'Language',
     loading: 'Loading generator…',
     load_failed: 'The generator could not be loaded. Your browser needs WebAssembly.',
     empty: 'Enter at least a name and an IBAN.',
+    bad_link: 'This link was made by a newer version of the page and was not loaded.',
+    dl_svg: 'Download SVG',
+    dl_png: 'Download PNG',
     copy_link: 'Copy link',
     copied: 'Link copied',
     copy_failed: 'Copying failed — the link is:',
@@ -43,13 +51,20 @@ const STR = {
     amount: 'Betrag (EUR)',
     amount_ph: 'z. B. 12,50 oder 12.50',
     text: 'Verwendungszweck',
+    more_fields: 'Weitere Felder (Referenz, BIC, Verwendungscode, Hinweis an die zahlende Person)',
     ref: 'Strukturierte Referenz',
     ref_ph: 'RF… (schließt Verwendungszweck aus)',
-    purpose: 'Purpose-Code',
-    info: 'Hinweis an die zahlende Person',
+    bic_ph: 'nur für Konten außerhalb des EWR',
+    purpose: 'Verwendungscode',
+    purpose_ph: 'z. B. SALA, 4 Zeichen',
+    info: 'Hinweis, der der zahlenden Person angezeigt wird',
+    language: 'Sprache',
     loading: 'Generator wird geladen…',
     load_failed: 'Der Generator konnte nicht geladen werden. Der Browser braucht WebAssembly.',
     empty: 'Mindestens Name und IBAN eingeben.',
+    bad_link: 'Dieser Link stammt von einer neueren Version der Seite und wurde nicht geladen.',
+    dl_svg: 'SVG herunterladen',
+    dl_png: 'PNG herunterladen',
     copy_link: 'Link kopieren',
     copied: 'Link kopiert',
     copy_failed: 'Kopieren fehlgeschlagen — der Link lautet:',
@@ -93,6 +108,7 @@ function applyLang(code) {
   }
   $('lang-en').setAttribute('aria-pressed', String(lang === 'en'));
   $('lang-de').setAttribute('aria-pressed', String(lang === 'de'));
+  $('lang-nav').setAttribute('aria-label', t.language);
   if (!ready) showStatus();
   else render(); // details header and the page's own messages are localized
 }
@@ -155,7 +171,7 @@ function scheduleRender() {
 
 function shareParams() {
   const p = new URLSearchParams();
-  p.set('v', '1');
+  p.set('v', LINK_VERSION);
   const fields = readForm();
   for (const k of FIELDS) if (fields[k] !== '') p.set(k, fields[k]);
   return p;
@@ -165,16 +181,34 @@ function shareURL() {
   return location.origin + location.pathname + '#' + shareParams().toString();
 }
 
+const LINK_VERSION = '1';
+
+// loadFragment fills the form from a share link. Returns true when fields
+// were filled; a link from a newer format version is refused, not guessed.
 function loadFragment() {
   const raw = location.hash.slice(1);
   if (!raw) return false;
   const p = new URLSearchParams(raw);
+  if ((p.get('v') || LINK_VERSION) !== LINK_VERSION) {
+    showError(STR[lang].bad_link);
+    return false;
+  }
   let any = false;
   for (const k of FIELDS) {
     const v = p.get(k);
-    if (v !== null) { $(k).value = v; any = true; }
+    if (v !== null) {
+      $(k).value = v;
+      any = true;
+      if (v !== '' && $('more').contains($(k))) $('more').open = true;
+    }
   }
   return any;
+}
+
+// Typed characters outside the amount alphabet are dropped before they land;
+// a paste is left alone so the validator can name what is wrong with it.
+function guardAmountInput(e) {
+  if (e.inputType === 'insertText' && e.data && /[^0-9 .,€]/.test(e.data)) e.preventDefault();
 }
 
 // --- downloads
@@ -199,10 +233,11 @@ function svgBlob() { return new Blob([last.svg], { type: 'image/svg+xml' }); }
 function pngBlob() { return new Blob([last.png], { type: 'image/png' }); }
 
 function flash(button, text) {
-  const old = button.textContent;
   button.textContent = text;
   button.disabled = true;
-  setTimeout(() => { button.textContent = old; button.disabled = false; }, 1500);
+  // Restore from the i18n table, not from a captured string: the language
+  // may have changed in the meantime.
+  setTimeout(() => { button.textContent = STR[lang][button.dataset.i18n]; button.disabled = false; }, 1500);
 }
 
 async function copyLink() {
@@ -265,6 +300,7 @@ async function main() {
   els.fields.disabled = false;
 
   $('form').addEventListener('input', scheduleRender);
+  $('amount').addEventListener('beforeinput', guardAmountInput);
   $('form').addEventListener('submit', (e) => { e.preventDefault(); render(); });
   els.dlSvg.addEventListener('click', () => download(svgBlob(), fileStem() + '.svg'));
   els.dlPng.addEventListener('click', () => download(pngBlob(), fileStem() + '.png'));

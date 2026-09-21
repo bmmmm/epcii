@@ -16,6 +16,18 @@ what to check.
   resources; share links carry the fields only in the URL fragment. SVG and
   PNG downloads are byte-identical to the CLI, enforced by
   `scripts/web-smoke.mjs` in CI. See README "Web".
+- Web form: name, IBAN, amount and remittance text up front; reference,
+  BIC, purpose code and the note to the payer fold under "More fields"
+  (IBAN-only is the SEPA norm). Typed letters never land in the amount
+  field; pasted ones still reach the validator. A share link from a newer
+  format version is refused instead of guessed. `web-smoke.mjs` now also
+  greps the page sources for storage APIs, address-bar writes and external
+  resources.
+
+### Changed
+
+- The PNG scale (8 px per module) is one constant, `render.DefaultPNGScale`,
+  shared by `--png` and the web download; behaviour is unchanged.
 
 ## [0.2.0] - 2026-09-04
 

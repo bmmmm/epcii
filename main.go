@@ -19,8 +19,6 @@ import (
 
 var version = "dev"
 
-const pngScale = 8 // pixels per module; 69 modules + quiet zone => 616 px max
-
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -184,7 +182,7 @@ func writePNG(path string, matrix [][]bool) error {
 		os.Remove(name)
 		return err
 	}
-	if err := encodePNG(f, matrix, pngScale); err != nil {
+	if err := encodePNG(f, matrix, render.DefaultPNGScale); err != nil {
 		f.Close()
 		return fail(err)
 	}

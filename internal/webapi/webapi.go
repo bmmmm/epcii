@@ -12,10 +12,6 @@ import (
 	"github.com/bmmmm/epcii/internal/render"
 )
 
-// pngScale is pixels per module for the PNG download. Keep equal to
-// pngScale in main.go so the web PNG matches `epcii --png` byte for byte.
-const pngScale = 8
-
 // Input mirrors the CLI flags (see the flag table in main.go).
 type Input struct {
 	Name, IBAN, BIC, Amount, Purpose, Ref, Text, Info string
@@ -28,7 +24,7 @@ type Output struct {
 	Version int    // QR symbol version
 	Size    int    // modules per side, without quiet zone
 	SVG     string // identical to the CLI's stdout
-	PNG     []byte // identical to the CLI's --png file
+	PNG     []byte // identical to the CLI's --png file (render.DefaultPNGScale)
 	Error   string // validation/encoding error text, without the "epcii:" prefix
 }
 
@@ -48,7 +44,7 @@ func Generate(in Input) Output {
 	}
 	matrix := code.Matrix()
 	var png bytes.Buffer
-	if err := render.PNG(&png, matrix, pngScale); err != nil {
+	if err := render.PNG(&png, matrix, render.DefaultPNGScale); err != nil {
 		return Output{Error: err.Error()}
 	}
 	return Output{

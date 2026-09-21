@@ -2,7 +2,8 @@
 
 Generate EPC QR codes ("GiroCode") for SEPA credit transfers — a single
 static binary with zero runtime dependencies, including its own QR encoder
-core.
+core. The same code runs in the browser at
+<https://bmmmm.github.io/epcii/> (see [Web](#web)): no server, no storage.
 
 An EPC QR code ([EPC069-12](https://www.europeanpaymentscouncil.eu/document-library/guidance-documents/quick-response-code-guidelines-enable-data-capture-initiation))
 encodes recipient, IBAN, amount, and remittance text so a banking app can
@@ -10,7 +11,9 @@ pre-fill a SEPA transfer from a single scan.
 
 ## Install
 
-Requires Go 1.26 or newer:
+No install: open <https://bmmmm.github.io/epcii/>.
+
+For the command line, requires Go 1.26 or newer:
 
 ```sh
 go install github.com/bmmmm/epcii@latest
@@ -71,6 +74,12 @@ The same generator runs in the browser at
 and the SVG and PNG you download are byte-identical to the CLI's output —
 `scripts/web-smoke.mjs` proves that in CI on every change.
 
+The form shows name, IBAN, amount and remittance text; reference, BIC,
+purpose code and the note to the payer are folded under "More fields", since
+IBAN-only is the SEPA norm (a BIC is only needed for accounts outside the
+EEA). Every field of the flag table above is available and travels in share
+links. The page is in English and German; the switch keeps nothing.
+
 What the page does not do:
 
 - **No server, no storage.** GitHub Pages serves a handful of static files;
@@ -115,7 +124,14 @@ after `go build -o epcii .`.
 go build -o epcii .   # build
 go test ./...         # unit, golden, and round-trip tests
 go vet ./... && gofmt -l .
+scripts/build-web.sh && node scripts/web-smoke.mjs   # web build + CLI-identity gate
 ```
+
+The browser build lives in `cmd/epcii-wasm` (a `js && wasm` entry point
+over `internal/webapi`, the CLI pipeline as one function) and `web/`
+(static page, no framework). `scripts/build-web.sh` assembles `web/dist/`;
+`pages.yml` deploys it to GitHub Pages on every push to `main`, after the
+same smoke gate CI runs on pull requests.
 
 `--version` reports whatever the build info carries: the module version for
 `go install`, a VCS pseudo-version for a plain `go build` in a checkout.
@@ -132,7 +148,10 @@ segno's reference implementation (regenerate via
 reconstruction test that rebuilds the module matrix from the emitted path,
 and matrix fingerprints for every payload length generated from the
 upstream piglig/go-qr encoder (`go run -C scripts/qrfixtures .`, a separate
-module so upstream never enters `go.mod`).
+module so upstream never enters `go.mod`). The web build adds a fifth:
+`scripts/web-smoke.mjs` runs the wasm through Go's `wasm_exec.js` and
+compares its SVG and PNG with the CLI byte for byte, then greps the page
+sources for storage APIs, address-bar writes and external resources.
 
 ## Contributing
 

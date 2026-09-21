@@ -78,4 +78,21 @@ else console.log(`ok   invalid IBAN → "${bad.error}"`);
 if (typeof globalThis.epcii.version !== 'string' || !globalThis.epcii.version) fail('version string missing');
 else console.log(`ok   version ${globalThis.epcii.version}`);
 
+// --- zero-storage contract (CONTRIBUTING "The web version is the CLI"):
+// the page sources must not name a storage API, write the address bar, or
+// pull anything from another origin. A grep gate, but one that can go red.
+const forbidden = [
+  [/localStorage|sessionStorage|indexedDB|document\.cookie|serviceWorker|caches\./, 'storage API'],
+  [/history\.(pushState|replaceState|go|back|forward)|location\.(hash|href|search|assign|replace)\s*[=(]/, 'address bar write'],
+  [/<(script|link|img|iframe)[^>]+(src|href)=["']https?:/i, 'external resource tag'],
+  [/@import|url\(\s*["']?https?:/i, 'external stylesheet resource'],
+  [/\bimport\s*\(|\bfetch\(\s*["']https?:/, 'dynamic import / cross-origin fetch'],
+];
+for (const name of ['index.html', 'app.js', 'style.css']) {
+  const src = readFileSync(join(root, 'web', name), 'utf8');
+  const hits = forbidden.filter(([re]) => re.test(src)).map(([, what]) => what);
+  if (hits.length) fail(`web/${name} violates the zero-storage contract: ${hits.join(', ')}`);
+  else console.log(`ok   web/${name} names no storage, address-bar write or external resource`);
+}
+
 process.exit(failures ? 1 : 0);

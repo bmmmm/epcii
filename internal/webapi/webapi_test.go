@@ -33,7 +33,7 @@ func TestGenerateMatchesCLIPipeline(t *testing.T) {
 		t.Error("SVG differs from render.SVG")
 	}
 	var png bytes.Buffer
-	if err := render.PNG(&png, code.Matrix(), 8); err != nil {
+	if err := render.PNG(&png, code.Matrix(), render.DefaultPNGScale); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(out.PNG, png.Bytes()) {

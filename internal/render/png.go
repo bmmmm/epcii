@@ -7,6 +7,11 @@ import (
 	"io"
 )
 
+// DefaultPNGScale is the pixels-per-module scale the CLI (--png) and the web
+// version share, so both produce the same file: 69 modules + quiet zone
+// => 616 px at most.
+const DefaultPNGScale = 8
+
 // PNG renders the module matrix as a PNG with the given pixels-per-module
 // scale, including the quiet zone.
 func PNG(w io.Writer, modules [][]bool, scale int) error {
