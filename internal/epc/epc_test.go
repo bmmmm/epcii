@@ -3,6 +3,7 @@ package epc
 import (
 	"strings"
 	"testing"
+	"unicode"
 )
 
 func TestValidateIBAN(t *testing.T) {
@@ -470,4 +471,84 @@ func TestValidateBIC(t *testing.T) {
 	if _, err := p.Payload(); err == nil {
 		t.Error("Payload accepted the placeholder BIC 00000000")
 	}
+}
+
+// TestPayloadRejectsInvisibleCharacters: only CR and LF used to be refused,
+// so every other control character reached the payload and the --details
+// view verbatim (ESC drives the terminal that shows it), and bidi overrides
+// or zero-width runs could make a beneficiary name read differently from
+// how it is stored. Each rejection names the field and the codepoint.
+func TestPayloadRejectsInvisibleCharacters(t *testing.T) {
+	const iban = "DE02120300000000202051"
+	cases := map[string]struct {
+		p    Payment
+		want string // field and codepoint the error must name
+	}{
+		"ESC in name":            {Payment{Name: "Alice\x1b[31mEVIL", IBAN: iban}, "beneficiary name contains a control character U+001B"},
+		"NUL in text":            {Payment{Name: "X", IBAN: iban, Text: "paid\x00"}, "remittance text contains a control character U+0000"},
+		"TAB in name":            {Payment{Name: "ACME\tGmbH", IBAN: iban}, "U+0009"},
+		"BEL in info":            {Payment{Name: "X", IBAN: iban, Info: "ring\a"}, "U+0007"},
+		"DEL in text":            {Payment{Name: "X", IBAN: iban, Text: "x\x7fy"}, "U+007F"},
+		"C1 control in name":     {Payment{Name: "A\u0085B", IBAN: iban}, "U+0085"},
+		"RLO in name":            {Payment{Name: "ACME\u202e GmbH", IBAN: iban}, "beneficiary name contains an invisible format character U+202E"},
+		"LRI in text":            {Payment{Name: "X", IBAN: iban, Text: "invoice\u2066 42"}, "U+2066"},
+		"PDI in text":            {Payment{Name: "X", IBAN: iban, Text: "42\u2069"}, "U+2069"},
+		"zero-width space":       {Payment{Name: "X", IBAN: iban, Text: "in\u200bvoice"}, "U+200B"},
+		"BOM in info":            {Payment{Name: "X", IBAN: iban, Info: "\ufeffinfo"}, "U+FEFF"},
+		"zero-width joiner":      {Payment{Name: "A\u200dB", IBAN: iban}, "U+200D"},
+		"ESC in non-RF ref":      {Payment{Name: "X", IBAN: iban, Ref: "INV\x1b[2K"}, "structured reference contains a control character U+001B"},
+		"escape in purpose code": {Payment{Name: "X", IBAN: iban, Purpose: "A\x1bB"}, ""}, // rejected by the alphanumeric rule; any error will do
+	}
+	for name, tc := range cases {
+		payload, err := tc.p.Payload()
+		if err == nil {
+			t.Errorf("%s: accepted, payload %q", name, payload)
+			continue
+		}
+		if !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: error %q must name the field and codepoint (%q)", name, err, tc.want)
+		}
+	}
+
+	// Visible whitespace and decomposed text stay legal: the rule is about
+	// characters that do not show, not about anything non-ASCII.
+	good := map[string]Payment{
+		"no-break space in name":   {Name: "ACME\u00a0GmbH", IBAN: iban},
+		"combining mark in name":   {Name: "Mu\u0308ller", IBAN: iban},
+		"narrow no-break in text":  {Name: "X", IBAN: iban, Text: "1\u202f234"},
+		"tab inside the IBAN only": {Name: "X", IBAN: "DE02\t1203 0000 0000 2020 51"}, // whitespace is stripped before the check
+	}
+	for name, p := range good {
+		if _, err := p.Payload(); err != nil {
+			t.Errorf("%s: unexpected error: %v", name, err)
+		}
+	}
+}
+
+// FuzzPayload pins the shape invariant behind the field gate: whatever the
+// inputs, an accepted payload has at most twelve LF-separated lines and
+// carries no control or format character other than the separators. The
+// seeds are the hostile inputs from the 2026-09-21 audit.
+func FuzzPayload(f *testing.F) {
+	const iban = "DE02120300000000202051"
+	f.Add("ACME GmbH", iban, "", "12,50", "", "", "invoice 42", "")
+	f.Add("Alice\x1b[31mEVIL", iban, "", "", "", "", "", "")
+	f.Add("X", iban, "", "", "", "", "paid\x1b[2A\x1b[2Kiban: DE00SPOOFED", "")
+	f.Add("ACME\u202e GmbH", iban, "", "", "", "", "invoice\u2066 42\u2069\u200b", "\ufeffinfo")
+	f.Add("X", iban, "BNPAFRPP", "0.01", "GDDS", "RF18539007547034", "", "")
+	f.Fuzz(func(t *testing.T, name, iban, bic, amount, purpose, ref, text, info string) {
+		p := Payment{Name: name, IBAN: iban, BIC: bic, Amount: amount, Purpose: purpose, Ref: ref, Text: text, Info: info}
+		payload, err := p.Payload()
+		if err != nil {
+			return
+		}
+		if n := strings.Count(payload, "\n"); n > 11 {
+			t.Fatalf("accepted payload has %d lines, EPC069-12 has 12 fields:\n%q", n+1, payload)
+		}
+		for _, r := range payload {
+			if r != '\n' && (unicode.IsControl(r) || unicode.Is(unicode.Cf, r)) {
+				t.Fatalf("accepted payload carries U+%04X:\n%q", r, payload)
+			}
+		}
+	})
 }

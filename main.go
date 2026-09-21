@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"unicode"
 
 	"github.com/bmmmm/epcii/internal/epc"
 	"github.com/bmmmm/epcii/internal/qr"
@@ -133,12 +134,31 @@ func printDetails(w io.Writer, payload string, code *qr.Code) {
 	fmt.Fprintf(w, "encoded GiroCode payload (%d bytes, QR version %d, %dx%d modules):\n",
 		len(payload), code.Version(), code.Size(), code.Size())
 	for i, line := range strings.Split(payload, "\n") {
-		value := line
+		value := graphic(line)
 		if value == "" {
 			value = "(empty)"
 		}
 		fmt.Fprintf(w, "  %-15s %s\n", payloadFieldNames[i]+":", value)
 	}
+}
+
+// graphic renders every rune that has no visible form as its \u escape. The
+// details view is the verification aid, so it must never carry a byte that
+// can drive the terminal showing it; the payload gate refuses such input,
+// and this keeps the view honest even if it did not.
+func graphic(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case unicode.IsGraphic(r):
+			b.WriteRune(r)
+		case r > 0xFFFF:
+			fmt.Fprintf(&b, `\U%08X`, r)
+		default:
+			fmt.Fprintf(&b, `\u%04X`, r)
+		}
+	}
+	return b.String()
 }
 
 // looksLikeFlag reports whether a value has the shape of a CLI flag

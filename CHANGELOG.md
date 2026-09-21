@@ -26,6 +26,18 @@ what to check.
 
 ### Changed
 
+- Every field refuses invisible characters, not only line breaks: a control
+  character (ESC, NUL, TAB, DEL, the C1 range) or a format character (bidi
+  overrides such as U+202E, zero-width space and joiner, BOM) is rejected
+  with exit 2 and an error naming the field and codepoint, e.g.
+  `beneficiary name contains a control character U+001B`. Before, such a
+  value was encoded as given, and `--details` printed it raw — an ESC
+  sequence in `--text` could rewrite the `iban:` line on the terminal while
+  the QR carried the real IBAN. Names with emoji joined by U+200D are
+  affected; a no-break space is not.
+- `--details` shows any character without a visible form as its `\uXXXX`
+  escape instead of the raw byte, so the verification view can never drive
+  the terminal it is printed on.
 - The PNG scale (8 px per module) is one constant, `render.DefaultPNGScale`,
   shared by `--png` and the web download; behaviour is unchanged.
 

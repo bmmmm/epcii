@@ -13,7 +13,8 @@ import (
 const MaxPayloadBytes = 331
 
 // Payment holds the beneficiary and transfer data for one EPC QR payload.
-// All strings are UTF-8; none may contain line breaks.
+// All strings are UTF-8; none may contain a line break, a control character
+// or an invisible format character (see Payload).
 type Payment struct {
 	Name    string // beneficiary name, required, <=70 chars
 	IBAN    string // beneficiary IBAN, required, mod-97 validated
@@ -100,14 +101,14 @@ func (p Payment) Payload() (string, error) {
 		{"version", "002"},
 		{"character set", "1"}, // 1 = UTF-8
 		{"identification", "SCT"},
-		{"bic", bic},         // AT-C002, optional in version 002 (EEA)
-		{"name", name},       // AT-E001 beneficiary name
-		{"iban", iban},       // AT-C001 beneficiary IBAN
-		{"amount", amount},   // AT-T002, optional
-		{"purpose", purpose}, // AT-T007, optional
-		{"ref", ref},         // AT-T009 structured remittance (exclusive with text)
-		{"text", p.Text},     // AT-T009 unstructured remittance
-		{"info", p.Info},     // beneficiary-to-originator information
+		{"BIC", bic},                               // AT-C002, optional in version 002 (EEA)
+		{"beneficiary name", name},                 // AT-E001
+		{"IBAN", iban},                             // AT-C001
+		{"amount", amount},                         // AT-T002, optional
+		{"purpose code", purpose},                  // AT-T007, optional
+		{"structured reference", ref},              // AT-T009 structured remittance (exclusive with text)
+		{"remittance text", p.Text},                // AT-T009 unstructured remittance
+		{"beneficiary-to-originator info", p.Info}, // the labels match tooLong's, so every error names a field the same way
 	}
 	values := make([]string, len(fields))
 	for i, f := range fields {
@@ -118,6 +119,14 @@ func (p Payment) Payload() (string, error) {
 		// not valid UTF-8 (e.g. Latin-1 argv from a mis-configured locale).
 		if !utf8.ValidString(f.value) {
 			return "", fmt.Errorf("%s is not valid UTF-8", f.name)
+		}
+		// Nothing invisible may enter a payment field. A control character
+		// (ESC above all) drives the terminal that displays the --details
+		// verification view; a format character — bidi override, zero-width
+		// space, BOM — makes a beneficiary name read differently from how it
+		// is stored. EPC069-12 does not contemplate either in these fields.
+		if r, kind := invisibleRune(f.value); kind != "" {
+			return "", fmt.Errorf("%s contains %s U+%04X", f.name, kind, r)
 		}
 		values[i] = f.value
 	}
@@ -148,6 +157,22 @@ func hasCombiningMarks(s string) bool {
 		}
 	}
 	return false
+}
+
+// invisibleRune returns the first control (Cc) or format (Cf) rune in s with
+// a description for the error message, or kind "" when there is none.
+// Whitespace other than CR/LF/TAB is not invisible in this sense: a no-break
+// space shows as a space and IBAN normalization strips it anyway.
+func invisibleRune(s string) (rune, string) {
+	for _, r := range s {
+		switch {
+		case unicode.IsControl(r):
+			return r, "a control character"
+		case unicode.Is(unicode.Cf, r):
+			return r, "an invisible format character"
+		}
+	}
+	return 0, ""
 }
 
 // tooLong reports a character-limit violation for a text field.

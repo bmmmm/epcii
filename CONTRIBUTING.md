@@ -121,7 +121,14 @@ allows CRLF too). IBANs outside the SEPA country table are rejected, not
 merely mod-97 checked: the payload initiates a SEPA credit transfer, which
 cannot reach them. Text fields are not NFC-normalized (that would pull
 `golang.org/x/text` into the binary); decomposed input counts every
-combining mark as a character, and the length error says so.
+combining mark as a character, and the length error says so. No field may
+carry an invisible character: control characters (Unicode `Cc`, which
+includes ESC, NUL and TAB, not only CR/LF) and format characters (`Cf`:
+bidi overrides, zero-width space and joiner, BOM) are rejected with the
+field and codepoint named. An ESC would drive the terminal that displays
+the `--details` view; a bidi override would make a beneficiary name read
+differently from how it is stored. Visible whitespace such as the no-break
+space stays legal.
 
 ## Issues and PRs
 

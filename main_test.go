@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/bmmmm/epcii/internal/qr"
 )
 
 func runCLI(t *testing.T, args ...string) (code int, stdout, stderr string) {
@@ -103,6 +105,50 @@ func TestRunDetails(t *testing.T) {
 		if !strings.Contains(errOut, want) {
 			t.Errorf("details output missing %q:\n%s", want, errOut)
 		}
+	}
+}
+
+// TestRunDetailsRejectsEscape: --details is the verification aid, so a
+// field carrying an ANSI escape must be refused before anything is printed,
+// and no raw ESC byte may reach stderr (on a terminal it would rewrite the
+// lines above it — e.g. the iban: line).
+func TestRunDetailsRejectsEscape(t *testing.T) {
+	code, out, errOut := runCLI(t,
+		"--name", "Alice\x1b[31mEVIL", "--iban", "DE02120300000000202051", "--details")
+	if code != 2 {
+		t.Errorf("exit %d, want 2", code)
+	}
+	if out != "" {
+		t.Error("stdout must stay empty when a field is refused")
+	}
+	if strings.ContainsRune(errOut, 0x1b) {
+		t.Errorf("a raw ESC byte reached stderr: %q", errOut)
+	}
+	if !strings.Contains(errOut, "U+001B") {
+		t.Errorf("the refusal must name the codepoint: %q", errOut)
+	}
+}
+
+// TestPrintDetailsEscapesNonGraphic is the belt to the gate's braces: even
+// with a payload the gate did not see, the details view renders anything
+// that cannot be displayed as its \u escape instead of the raw byte.
+func TestPrintDetailsEscapesNonGraphic(t *testing.T) {
+	payload := "BCD\n002\n1\nSCT\n\nAlice\x1b[31mEVIL\u202E\nDE02120300000000202051"
+	code, err := qr.EncodeM([]byte(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	printDetails(&buf, payload, code)
+	got := buf.String()
+	if strings.ContainsAny(got, "\x1b\u202E") {
+		t.Errorf("details view carries a raw non-graphic character:\n%q", got)
+	}
+	if !strings.Contains(got, `Alice\u001B[31mEVIL\u202E`) {
+		t.Errorf("details view must show the escapes readably:\n%s", got)
+	}
+	if !strings.Contains(got, "iban:           DE02120300000000202051") {
+		t.Errorf("graphic text must pass through unchanged:\n%s", got)
 	}
 }
 
