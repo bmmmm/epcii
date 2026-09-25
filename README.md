@@ -91,10 +91,10 @@ that up, and each of them is gated rather than promised:
   the only URL its script requests is `epcii.wasm` (twice, if the browser
   forces the non-streaming fallback), and no field you type is ever part of
   a request. GitHub therefore learns what any web host learns from serving a
-  page (address, time, user agent) and nothing about the payment. The two
-  links in the footer point at github.com, but they are links: nothing is
-  fetched from there unless you click, and `referrer: no-referrer` means a
-  click carries nothing with it.
+  page (address, time, user agent) and nothing about the payment. The
+  links in the footer point at github.com and bezahlbrudi.jetzt, but they
+  are links: nothing is fetched from there unless you click, and
+  `referrer: no-referrer` means a click carries nothing with it.
 - **Content Security Policy.** Pages cannot send HTTP headers, so the policy
   is a `<meta>` tag: `default-src 'none'`, scripts and styles only from the
   page's own origin, `connect-src 'self'`, `form-action 'none'`,
@@ -204,6 +204,14 @@ compares its SVG and PNG with the CLI byte for byte, then greps the page
 sources for storage APIs, address-bar writes, external resources and HTML
 string sinks, and pins that the download name comes from the encoded
 payload rather than the form.
+
+## Alternatives
+
+♥ Friends with [BezahlBrudi](https://bezahlbrudi.jetzt/) by XenGi
+([source](https://git.xengi.de/xengi/bezahlbrudi)) — same idea, its own
+flavour: GiroCodes in the browser, with no payment service in between. It
+remembers your details on your device and speaks more languages. If that
+suits you better, go for it.
 
 ## Contributing
 

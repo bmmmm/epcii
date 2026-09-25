@@ -10,6 +10,9 @@ what to check.
 
 ### Added
 
+- Web footer and README point to BezahlBrudi by XenGi
+  (<https://bezahlbrudi.jetzt/>), a befriended project with the same idea,
+  for anyone looking for an alternative.
 - `web-smoke.mjs` pins the Content-Security-Policy directives of
   `web/index.html`, parsed the way a browser reads the policy: comments
   stripped, the first mention of a directive wins, names case-insensitive,
