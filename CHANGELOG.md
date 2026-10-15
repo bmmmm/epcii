@@ -8,6 +8,8 @@ what to check.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-15
+
 ### Added
 
 - Web footer and README point to BezahlBrudi by XenGi
